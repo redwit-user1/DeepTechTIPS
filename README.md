@@ -42,27 +42,30 @@ GOONO AI 오케스트레이션 엔진
 compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   vcr/                    #   VCR 보상함수 (SourceExist / SourceMatch / ALCOA / Halluc)
   nli/                    #   NLI 백엔드 (lexical / statistical v0.5 / transformer)
+  data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
   eval/                   #   SciFact 로더 + 벤치마크 하니스
   models.py              #   데이터 모델 (의존성 없음)
   pipeline.py            #   7단계 게이트웨이 파이프라인 오케스트레이션
   demo.py                #   VCR/Gateway 데모
 docs/                    # 설계·로드맵·스펙·평가 문서
-scripts/                 # 데이터 다운로드 등
+scripts/                 # 데이터 다운로드·시드 생성
 tests/                   # 단위 테스트
 ```
 
 ## 데이터 / 평가
 
-학습용 자체 데이터(GOONO)가 없는 단계에서, 공개 데이터셋으로 부트스트랩한다.
-초기 도메인(제약·바이오) 정합 데이터로 **SciFact** 를 사용한다.
+학습용 자체 데이터(GOONO)가 없는 단계에서, 공개·실데이터로 부트스트랩한다(초기 도메인: 제약·바이오).
 
 ```bash
-bash scripts/download_scifact.sh                      # CC BY-NC, S3(HF 차단 무관)
-python -m compliance_gateway.eval.benchmark --split train   # NLI 백엔드 비교
+# (A) bioRxiv 실논문 → DPO Preference 쌍 + Gateway 평가셋 (VCR 자기검증)
+python -m compliance_gateway.data.build_dpo            # docs/SYNTH_PIPELINE.md
+
+# (B) SciFact 로 NLI 백엔드 벤치마크
+bash scripts/download_scifact.sh                       # CC BY-NC, S3(HF 차단 무관)
+python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.md
 ```
 
-벤치마크 결과·해석은 [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md). 활용 가능한 공개 데이터셋
-카탈로그는 추후 `docs/DATASETS.md` 로 정리.
+벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 
 ## 빠른 시작
 

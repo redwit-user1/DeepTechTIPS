@@ -19,27 +19,36 @@ from compliance_gateway.vcr.source_match import _tokens
 # DOI 실재 여부 확인 어댑터: doi -> 실존하면 True
 DOIResolver = Callable[[str], bool]
 
-_NUM_UNIT = re.compile(r"(\d+(?:\.\d+)?)\s*(°c|℃|k|mol|mm|nm|μm|ph|%|배)", re.IGNORECASE)
+_NUM_UNIT = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(°c|℃|micro-?m|µm|nm|mm|mg|kg|mol|ph|%|fold|times|배)",
+    re.IGNORECASE,
+)
 
 
 def _type_a_b(citations: list[Citation], grounding: tuple[str, ...], resolver: Optional[DOIResolver]) -> float:
-    """근거에 없는 인용(유형 A/B) 비율."""
+    """검증 가능한 인용 중 허위(유형 A/B) 비율.
+
+    - 유형 A: DOI 가 실존하지 않음(resolver False).
+    - 유형 B: 인용에 논문 제목(title)이 있는데 근거에 그 핵심 토큰이 전혀 없음.
+    저자-연도/URL 만 있는 인용은 그 문자열이 근거 본문에 안 나오는 게 정상이므로
+    근거-중첩으로 환각 판정하지 않는다(정상 인용 오탐 방지).
+    """
     if not citations:
         return 0.0
-    evidence = " ".join(grounding)
-    ev_tokens = _tokens(evidence)
+    ev_tokens = _tokens(" ".join(grounding))
+    checkable = 0
     bad = 0
     for c in citations:
         if c.doi and resolver is not None:
+            checkable += 1
             if not resolver(c.doi):
                 bad += 1
-                continue
-        # 근거 텍스트에 인용 핵심 토큰이 전혀 없으면 허위 의심
-        if grounding:
-            ctoks = _tokens(c.raw)
-            if ctoks and not (ctoks & ev_tokens):
+        elif c.title and grounding:
+            checkable += 1
+            ttoks = _tokens(c.title)
+            if ttoks and not (ttoks & ev_tokens):
                 bad += 1
-    return bad / len(citations)
+    return bad / checkable if checkable else 0.0
 
 
 def _type_c(text: str, grounding: tuple[str, ...]) -> float:

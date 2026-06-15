@@ -10,10 +10,12 @@ venv/
 .env
 *.log
 
-# 모델/데이터 (대용량 — 별도 스토리지)
+# 모델/데이터 (대용량·재생성 가능 — 별도 스토리지)
 *.safetensors
 *.gguf
 *.bin
 data/raw/
+data/synth/
 models/
 checkpoints/
+# 단, compliance_gateway/data/seed/ 는 커밋(파이프라인 재현용 실데이터 시드)

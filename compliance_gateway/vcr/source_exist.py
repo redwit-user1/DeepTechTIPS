@@ -24,11 +24,13 @@ def extract_citations(text: str) -> list[Citation]:
     citations: list[Citation] = []
 
     for m in _DOI.finditer(text):
-        citations.append(Citation(raw=m.group(0), doi=m.group(0)))
+        doi = m.group(0).rstrip(").,;]")   # 끝의 닫는 괄호·구두점 제거
+        citations.append(Citation(raw=doi, doi=doi))
     for m in _URL.finditer(text):
+        url = m.group(0).rstrip(").,;]")
         # URL 안에 DOI가 포함된 경우 중복 방지
-        if not _DOI.search(m.group(0)):
-            citations.append(Citation(raw=m.group(0), url=m.group(0)))
+        if not _DOI.search(url):
+            citations.append(Citation(raw=url, url=url))
     for m in _AUTHOR_YEAR.finditer(text):
         authors = (m.group(1),)
         year = int(m.group(2))
