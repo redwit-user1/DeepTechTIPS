@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "compliance-gateway"
+version = "0.0.1"
+description = "GOONO AI — 규정준수 기반 Agentic AI 오케스트레이션 엔진 (Compliance Gateway)"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+# 추후: nli (NLI 모델), train (TRL/PEFT/bitsandbytes), agents (langgraph)
+
+[tool.setuptools.packages.find]
+include = ["compliance_gateway*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
