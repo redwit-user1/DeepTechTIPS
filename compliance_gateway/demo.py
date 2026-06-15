@@ -51,8 +51,9 @@ def _run(gw: ComplianceGateway, label: str, response: str) -> None:
 
 
 def main() -> None:
-    gw = ComplianceGateway(vcr_threshold=0.60)
-    print("=== Compliance Gateway 데모 (제약·바이오 / θ=0.60) ===")
+    # θ 는 NLI 백엔드에 맞춰 보정한다(VCR v2에서 도메인별 자동 최적화).
+    gw = ComplianceGateway(vcr_threshold=0.55)
+    print("=== Compliance Gateway 데모 (제약·바이오 / NLI=statistical v0.5 / θ=0.55) ===")
     _run(gw, "규정준수 응답", GOOD)
     _run(gw, "출처없는 응답", NO_SOURCE)
     _run(gw, "수치변조 응답(유형C)", TAMPERED)

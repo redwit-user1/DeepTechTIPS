@@ -50,6 +50,11 @@ class ComplianceGateway:
     ) -> None:
         self.vcr_threshold = vcr_threshold
         self.max_regenerations = max_regenerations
+        # 기본 NLI 백엔드 = 통계적 v0.5(극성 처리). 운영 환경에서는
+        # TransformerNLI 를 주입해 교체한다(HF/온프레미스 모델).
+        if nli_fn is None:
+            from compliance_gateway.nli.statistical import StatisticalNLI
+            nli_fn = StatisticalNLI()
         self.nli_fn = nli_fn
         self.doi_resolver = doi_resolver
 

@@ -32,6 +32,17 @@ def _overlap(claim: str, evidence: str) -> float:
     return len(a & b) / len(a)
 
 
+def _claim_for_citation(text: str, citation_raw: str) -> str:
+    """인용이 들어있는 문장을 추출한다(없으면 전체 응답).
+
+    이래야 NLI 가 '인용 문자열' 이 아니라 '근거가 뒷받침해야 할 주장' 을 평가한다.
+    """
+    for part in re.split(r"(?<=[.!?])\s+|(?<=[다요])\s+|\n+", text.strip()):
+        if citation_raw in part:
+            return part.strip()
+    return text
+
+
 def source_match(
     text: str,
     citations: list[Citation],
@@ -55,10 +66,12 @@ def source_match(
     evidence = " ".join(grounding)
     scores: list[float] = []
     for c in citations:
+        # 인용이 포함된 문장(=뒷받침되어야 할 주장)을 근거와 대조한다.
+        claim = _claim_for_citation(text, c.raw)
         if nli_fn is not None:
-            s = max(nli_fn(g, c.raw) for g in grounding)
+            s = max(nli_fn(g, claim) for g in grounding)
         else:
-            s = _overlap(c.raw, evidence)
+            s = _overlap(claim, evidence)
         c.match_score = s
         c.verified = s >= 0.5
         scores.append(s)
