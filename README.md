@@ -66,6 +66,7 @@ python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.
 ```
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
+활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).
 
 ## 빠른 시작
 
