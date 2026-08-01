@@ -17,6 +17,9 @@ _URL = re.compile(r"https?://[^\s)]+", re.IGNORECASE)
 _AUTHOR_YEAR = re.compile(
     r"\b([A-Z][A-Za-z]+(?:\s+(?:et al\.?|&\s+[A-Z][A-Za-z]+)))[,]?\s*\(?(\d{4})\)?"
 )
+# 큰따옴표로 인용된 논문 제목: (cf. "Title of the paper")
+# LLM 생성물이 DOI 없이 제목만 인용하는 흔한 형태.
+_QUOTED_TITLE = re.compile(r'"([^"]{20,300})"')
 
 
 # 같은 참고문헌으로 볼 최대 문자 간격(예: "(Kim et al. (2024); DOI: 10.x/y)")
@@ -43,6 +46,8 @@ def extract_citations(text: str, merge: bool = True) -> list[Citation]:
         found.append(
             (m.start(), m.end(), Citation(raw=m.group(0), authors=(m.group(1),), year=int(m.group(2))))
         )
+    for m in _QUOTED_TITLE.finditer(text):
+        found.append((m.start(), m.end(), Citation(raw=m.group(0), title=m.group(1))))
 
     found.sort(key=lambda x: x[0])
     if not merge:

@@ -65,7 +65,14 @@ python -m compliance_gateway.data.build_dpo            # docs/SYNTH_PIPELINE.md
 # (B) SciFact 로 NLI 백엔드 벤치마크
 bash scripts/download_scifact.sh                       # CC BY-NC, S3(HF 차단 무관)
 python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.md
+
+# (C) 외부 실데이터 KPI — 합성 낙관편향 제거. 성능 주장의 진짜 근거
+python -m compliance_gateway.eval.external --split train --sweep   # docs/EVAL_EXTERNAL.md
 ```
+
+> ⚠️ **성능 보고 원칙**: 합성 평가셋(F1 98.2%)은 회귀 테스트용이며 KPI 근거로 쓰지 않는다.
+> 외부 실데이터 기준 현재 F1 **39.3%** — 목표 90%까지는 트랜스포머 NLI 도입이 필수 조건임을
+> 임계값 스윕으로 확인했다(어떤 θ 에서도 Precision 41% 상한). [`docs/EVAL_EXTERNAL.md`](docs/EVAL_EXTERNAL.md)
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).

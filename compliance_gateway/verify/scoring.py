@@ -72,23 +72,35 @@ def weighted_score(
     claimed_year: int | None,
     record: PaperRecord,
 ) -> tuple[float, tuple[str, ...]]:
-    """가중 유사도와 불일치 필드 목록을 반환."""
-    t = title_similarity(claimed_title, record.title) if claimed_title else 0.0
-    a = author_similarity(claimed_authors, record)
-    y = year_similarity(claimed_year, record.year)
+    """가중 유사도와 불일치 필드 목록을 반환.
 
-    # 인용에 제목이 없는 경우(저자-연도 인용) 제목 가중치를 저자/연도로 재분배
-    if not claimed_title:
-        total_w = W_AUTHOR + W_YEAR
-        score = (W_AUTHOR * a + W_YEAR * y) / total_w if total_w else 0.0
-    else:
-        score = W_TITLE * t + W_AUTHOR * a + W_YEAR * y
+    **가용 필드로만 가중치를 정규화한다.** 인용이 제공하지 않은 메타데이터
+    (예: 제목만 있는 인용의 저자·연도)를 0점 처리하면 정확한 인용도
+    환각으로 오판된다 — 실데이터 평가에서 드러난 문제.
+    레코드 쪽에 해당 필드가 없는 경우도 대조 불가이므로 분모에서 제외한다.
+    """
+    parts: list[tuple[float, float]] = []   # (weight, similarity)
+
+    if claimed_title:
+        parts.append((W_TITLE, title_similarity(claimed_title, record.title)))
+    if claimed_authors and record.authors:
+        parts.append((W_AUTHOR, author_similarity(claimed_authors, record)))
+    if claimed_year is not None and record.year is not None:
+        parts.append((W_YEAR, year_similarity(claimed_year, record.year)))
+
+    total_w = sum(w for w, _ in parts)
+    score = sum(w * s for w, s in parts) / total_w if total_w else 0.0
+
+    t = title_similarity(claimed_title, record.title) if claimed_title else 0.0
+    a = author_similarity(claimed_authors, record) if (claimed_authors and record.authors) else 1.0
+    y = (year_similarity(claimed_year, record.year)
+         if (claimed_year is not None and record.year is not None) else 1.0)
 
     mismatches = []
     if claimed_title and t < 0.85:
         mismatches.append("title")
-    if claimed_authors and a < 0.85:
+    if claimed_authors and record.authors and a < 0.85:
         mismatches.append("author")
-    if claimed_year is not None and y < 1.0:
+    if claimed_year is not None and record.year is not None and y < 1.0:
         mismatches.append("year")
     return score, tuple(mismatches)

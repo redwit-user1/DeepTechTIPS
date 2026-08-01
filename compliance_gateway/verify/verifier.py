@@ -48,20 +48,33 @@ class LocalRegistry:
     name = "local"
 
     def __init__(self, records: Iterable[PaperRecord] = ()) -> None:
+        from compliance_gateway.verify.scoring import normalize
+
         self._records = list(records)
         self._by_doi = {r.doi: r for r in self._records if r.doi}
+        # 정확 제목 인덱스 — 대규모 레지스트리에서 선형 스캔을 회피
+        self._by_title = {normalize(r.title): r for r in self._records if r.title}
 
     def add(self, record: PaperRecord) -> None:
+        from compliance_gateway.verify.scoring import normalize
+
         self._records.append(record)
         if record.doi:
             self._by_doi[record.doi] = record
+        if record.title:
+            self._by_title[normalize(record.title)] = record
 
     def by_doi(self, doi: str) -> Optional[PaperRecord]:
         return self._by_doi.get(doi)
 
     def search(self, title: str, author: str = "", limit: int = 5) -> list[PaperRecord]:
-        from compliance_gateway.verify.scoring import title_similarity
+        from compliance_gateway.verify.scoring import normalize, title_similarity
 
+        # 1) 정확 제목 일치(정규화 후) → O(1)
+        exact = self._by_title.get(normalize(title))
+        if exact is not None:
+            return [exact]
+        # 2) 폴백: 유사도 선형 스캔
         scored = [(title_similarity(title, r.title), r) for r in self._records]
         scored.sort(key=lambda x: x[0], reverse=True)
         return [r for s, r in scored[:limit] if s > 0]
