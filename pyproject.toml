@@ -11,7 +11,17 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
-# 추후: nli (NLI 모델), train (TRL/PEFT/bitsandbytes), agents (langgraph)
+# A100 환경(HF 접근 가능)에서 설치: pip install "compliance-gateway[train]"
+train = [
+    "torch>=2.3",
+    "transformers>=4.44",
+    "trl>=0.11",
+    "peft>=0.12",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+    "bitsandbytes>=0.43",   # 4-bit 양자화(M5)
+]
+# 추후: agents (langgraph), serve (vllm)
 
 [tool.setuptools.packages.find]
 include = ["compliance_gateway*"]

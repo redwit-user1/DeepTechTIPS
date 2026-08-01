@@ -43,7 +43,8 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   vcr/                    #   VCR 보상함수 (SourceExist / SourceMatch / ALCOA / Halluc)
   nli/                    #   NLI 백엔드 (lexical / statistical v0.5 / transformer)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
-  eval/                   #   SciFact 로더 + 벤치마크 하니스
+  train/                  #   학습 스캐폴드 (config/data_format/sft/dpo/nli_finetune) — A100용
+  eval/                   #   SciFact 벤치마크 + KPI 측정 하니스(kpi.py)
   models.py              #   데이터 모델 (의존성 없음)
   pipeline.py            #   7단계 게이트웨이 파이프라인 오케스트레이션
   demo.py                #   VCR/Gateway 데모
@@ -67,6 +68,22 @@ python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).
+
+## A100 학습 계획
+
+A100 2장 × 6개월 확보. 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
+6개월 로드맵·KPI 매핑·실행 커맨드는 [`docs/A100_PLAN.md`](docs/A100_PLAN.md).
+
+```bash
+# KPI 측정(현재 baseline — A100 없이 동작)
+python -m compliance_gateway.eval.kpi
+
+# A100 환경(HF 접근 가능)
+pip install -e ".[train]"
+python -m compliance_gateway.train.nli_finetune   # NLI 파인튜닝(규정위반/출처 KPI)
+python -m compliance_gateway.train.sft            # 도메인 LoRA
+python -m compliance_gateway.train.dpo --vcr-accept 0.7  # VCR 정렬
+```
 
 ## 빠른 시작
 
