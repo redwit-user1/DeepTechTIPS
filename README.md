@@ -88,7 +88,7 @@ python -m compliance_gateway.eval.kpi --compare
 
 # A100 환경(HF 접근 가능)
 pip install -e ".[train]" && pip install unsloth vllm
-python -m compliance_gateway.train.nli_finetune         # NLI 파인튜닝(규정위반/출처 KPI)
+bash scripts/run_m1_a100.sh                             # M1 전체: 기준선→NLI 파인튜닝→재측정
 torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
 python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
 python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수)

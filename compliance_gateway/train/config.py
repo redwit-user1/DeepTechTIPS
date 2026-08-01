@@ -113,6 +113,7 @@ class GRPOConfig:
 class NLIFinetuneConfig:
     base_model: str = "deberta-mnli"
     train_split: str = "train"                 # SciFact split
+    eval_split: str = "dev"                    # 학습 검증(빈 문자열이면 비활성)
     output_dir: str = "checkpoints/nli"
     epochs: int = 3
     lr: float = 2e-5

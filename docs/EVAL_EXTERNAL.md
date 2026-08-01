@@ -78,11 +78,41 @@ python -m compliance_gateway.eval.external --split train --sweep
 3. **레지스트리 선형 스캔** — 대규모 레지스트리에서 평가가 수 분 소요.
    수정: 정규화 제목 정확 인덱스 O(1) 우선 조회.
 
+## 공정 비교 프로토콜 (데이터 누출 방지)
+
+NLI 는 SciFact **train** 으로 파인튜닝한다. 따라서 **KPI 는 반드시 `dev` 로 측정**해야 한다.
+같은 split 으로 재측정하면 학습 데이터를 재평가하는 셈이라 수치가 부풀려진다.
+→ `eval/external.py` 에 가드를 넣어 `--nli` + `--split train` 조합을 **차단**한다
+(진단 목적이면 `--allow-leakage` 명시).
+
+### dev 기준선 (학습 전, 통계 NLI v0.5) — 파인튜닝 후 비교 대상
+
+| θ | Precision | Recall | F1 | PASS |
+|---|---|---|---|---|
+| 0.50 | 36.7% | 9.0% | 14.5% | 91.2% |
+| **0.55** | **39.0%** | **39.3%** | **39.2%** | 65.3% |
+| 0.60 | 35.4% | 73.8% | 47.9% | 24.1% |
+
+train(39.3%)과 dev(39.2%)가 거의 동일 → **발견이 특정 split 우연이 아님**을 확인.
+
+## M1 실행 (A100)
+
+```bash
+bash scripts/run_m1_a100.sh          # 준비→검증→기준선→파인튜닝→재측정 자동
+```
+
+개별 실행:
+```bash
+python -m compliance_gateway.train.nli_finetune --dry-run          # GPU 없이 검증
+python -m compliance_gateway.train.nli_finetune --output checkpoints/nli
+python -m compliance_gateway.eval.external --split dev --nli checkpoints/nli --sweep
+```
+
 ## 시사점 (로드맵 반영)
 
 | 항목 | 반영 |
 |---|---|
-| 트랜스포머 NLI | **선택 아닌 필수**. M1 최우선, A100 첫 작업으로 확정 |
+| 트랜스포머 NLI | **선택 아닌 필수**. M1 최우선, A100 첫 작업으로 확정 (`scripts/run_m1_a100.sh`) |
 | 합성 평가셋 | 회귀 테스트용으로 유지하되 **KPI 근거로는 사용 금지** |
 | KPI 보고 | 모든 성능 주장은 외부 실데이터 기준으로 병기 |
 | 목표 재점검 | 현재 39.3% → 90% 는 큰 격차. NLI 파인튜닝 후 재측정으로 실현 가능성 판단 |

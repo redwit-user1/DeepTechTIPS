@@ -89,6 +89,11 @@ def main() -> None:
     ap.add_argument("--out", default=None, help="JSONL 저장 경로(선택)")
     ap.add_argument("--sweep", action="store_true",
                     help="임계값 스윕 — '보정 문제'와 '모델 한계'를 분리")
+    ap.add_argument("--nli", default=None,
+                    help="트랜스포머 NLI 모델 경로/ID (예: checkpoints/nli). 미지정 시 통계 v0.5")
+    ap.add_argument("--device", default="cuda", help="NLI 추론 디바이스(cuda/cpu)")
+    ap.add_argument("--allow-leakage", action="store_true",
+                    help="파인튜닝 split 으로 평가 허용(진단용, KPI 근거로 쓰지 말 것)")
     a = ap.parse_args()
 
     from compliance_gateway.eval.kpi import evaluate
@@ -99,10 +104,30 @@ def main() -> None:
     items, registry = build_external_eval(split=a.split, limit=a.limit)
     n_ok = sum(1 for i in items if i["label"] == "compliant")
     print(f"SciFact[{a.split}] 외부 평가셋: {len(items)}건 "
-          f"(compliant={n_ok}, unsupported_claim={len(items) - n_ok})\n")
+          f"(compliant={n_ok}, unsupported_claim={len(items) - n_ok})")
+
+    # NLI 백엔드 선택 — 파인튜닝 모델 주입 시 여기서 교체된다(재측정 경로)
+    if a.nli:
+        from compliance_gateway.nli.transformer import TransformerNLI
+
+        # 데이터 누출 가드: NLI 는 SciFact train 으로 파인튜닝된다.
+        # 같은 split 으로 KPI 를 측정하면 학습 데이터를 재평가하는 셈이라 부풀려진다.
+        if a.split == "train" and not a.allow_leakage:
+            raise SystemExit(
+                "[중단] 데이터 누출 위험: 파인튜닝 NLI(--nli)를 train split 으로 평가하려 합니다.\n"
+                "  NLI 는 SciFact train 으로 학습되므로 KPI 가 부풀려집니다.\n"
+                "  → `--split dev` 로 측정하세요(정직한 일반화 성능).\n"
+                "  (의도적 비교가 필요하면 --allow-leakage)"
+            )
+        nli_fn = TransformerNLI(model_name=a.nli, device=a.device)
+        backend_name = f"transformer({a.nli})"
+    else:
+        nli_fn = StatisticalNLI()
+        backend_name = "statistical-v0.5"
+    print(f"NLI 백엔드: {backend_name}\n")
 
     gw = ComplianceGateway(
-        vcr_threshold=a.threshold, nli_fn=StatisticalNLI(),
+        vcr_threshold=a.threshold, nli_fn=nli_fn,
         verifier=CitationVerifier([registry]),
     )
     m = evaluate(gw, items)
@@ -124,7 +149,8 @@ def main() -> None:
         best_usable = (0.0, None)
         best_raw = (0.0, None)
         for th in [x / 100 for x in range(30, 85, 5)]:
-            g = ComplianceGateway(vcr_threshold=th, nli_fn=StatisticalNLI(),
+            # 동일 NLI 인스턴스 재사용 — 트랜스포머는 캐시가 있어 스윕이 크게 빨라진다
+            g = ComplianceGateway(vcr_threshold=th, nli_fn=nli_fn,
                                   verifier=CitationVerifier([registry]))
             mm = evaluate(g, items)
             usable = mm["compliant_pass_rate"] >= MIN_PASS
