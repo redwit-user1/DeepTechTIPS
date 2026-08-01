@@ -42,8 +42,9 @@ GOONO AI 오케스트레이션 엔진
 compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   vcr/                    #   VCR 보상함수 (SourceExist / SourceMatch / ALCOA / Halluc)
   nli/                    #   NLI 백엔드 (lexical / statistical v0.5 / transformer)
+  verify/                 #   3단계 인용 검증 (3-class, CrossRef/OpenAlex/로컬)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
-  train/                  #   학습 스캐폴드 (config/data_format/sft/dpo/nli_finetune) — A100용
+  train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — A100용
   eval/                   #   SciFact 벤치마크 + KPI 측정 하니스(kpi.py)
   models.py              #   데이터 모델 (의존성 없음)
   pipeline.py            #   7단계 게이트웨이 파이프라인 오케스트레이션
@@ -75,15 +76,21 @@ A100 2장 × 6개월 확보. 컴퓨트는 병목이 아니므로 데이터·평�
 6개월 로드맵·KPI 매핑·실행 커맨드는 [`docs/A100_PLAN.md`](docs/A100_PLAN.md).
 
 ```bash
-# KPI 측정(현재 baseline — A100 없이 동작)
-python -m compliance_gateway.eval.kpi
+# KPI 측정(현재 baseline — A100 없이 동작). --compare 로 서지검증 백엔드 비교
+python -m compliance_gateway.eval.kpi --compare
 
 # A100 환경(HF 접근 가능)
-pip install -e ".[train]"
-python -m compliance_gateway.train.nli_finetune   # NLI 파인튜닝(규정위반/출처 KPI)
-python -m compliance_gateway.train.sft            # 도메인 LoRA
-python -m compliance_gateway.train.dpo --vcr-accept 0.7  # VCR 정렬
+pip install -e ".[train]" && pip install unsloth vllm
+python -m compliance_gateway.train.nli_finetune         # NLI 파인튜닝(규정위반/출처 KPI)
+torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
+python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
+python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수)
 ```
+
+최신 업스트림(Unsloth/TRL-vLLM/인용검증) 조사·적용 기록과 측정치: [`docs/UPSTREAM_TECH.md`](docs/UPSTREAM_TECH.md).
+
+**적용 성과** — 3단계 인용 검증 도입으로 서지 변조 탐지 **9.1% → 100%**,
+위반탐지 F1 **0.766 → 0.982** (오탐 증가 없음).
 
 ## 빠른 시작
 

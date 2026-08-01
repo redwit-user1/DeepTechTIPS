@@ -47,6 +47,7 @@ class ComplianceGateway:
         max_regenerations: int = 3,
         nli_fn: Optional[NLIFn] = None,
         doi_resolver: Optional[DOIResolver] = None,
+        verifier=None,
     ) -> None:
         self.vcr_threshold = vcr_threshold
         self.max_regenerations = max_regenerations
@@ -57,6 +58,8 @@ class ComplianceGateway:
             nli_fn = StatisticalNLI()
         self.nli_fn = nli_fn
         self.doi_resolver = doi_resolver
+        # CitationVerifier 주입 시 3-class 서지 검증으로 유형 A/B 정밀도 향상
+        self.verifier = verifier
 
     # ---- 04 출처 바인딩 -------------------------------------------------
     def _source_binding(self, req: GenerationRequest) -> tuple[list[Citation], StageReport]:
@@ -78,6 +81,7 @@ class ComplianceGateway:
             citations=citations,
             nli_fn=self.nli_fn,
             doi_resolver=self.doi_resolver,
+            verifier=self.verifier,
         )
 
     # ---- 07 블록체인 감사추적 (해시 생성) ------------------------------

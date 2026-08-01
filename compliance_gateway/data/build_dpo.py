@@ -41,19 +41,22 @@ def main() -> None:
     preprints = load_seed(Path(args.seed) if args.seed else None)
     pairs, evals = build_examples(preprints, max_claims=args.max_claims)
 
-    known = {pp.doi for pp in preprints}
-    resolver = make_doi_resolver(known)
     nli = StatisticalNLI()
+    # 3-class 서지 검증기(로컬 레지스트리). 운영/A100 환경에서는
+    # CitationVerifier([LocalRegistry(...), CrossRefBackend()]) 로 온라인 폴백 추가.
+    from compliance_gateway.verify import CitationVerifier, LocalRegistry
+
+    verifier = CitationVerifier([LocalRegistry.from_seed()])
 
     # --- VCR 자기검증: chosen vs rejected ---
     for p in pairs:
         p.vcr_chosen = compute_vcr(
             p.prompt, p.chosen, grounding=(p.grounding,),
-            nli_fn=nli, doi_resolver=resolver,
+            nli_fn=nli, verifier=verifier,
         ).vcr
         p.vcr_rejected = compute_vcr(
             p.prompt, p.rejected, grounding=(p.grounding,),
-            nli_fn=nli, doi_resolver=resolver,
+            nli_fn=nli, verifier=verifier,
         ).vcr
 
     wins = sum(1 for p in pairs if p.vcr_chosen > p.vcr_rejected)
@@ -65,7 +68,7 @@ def main() -> None:
         kinds.setdefault(p.rejected_kind, []).append(p.margin)
 
     # --- Gateway 결정 검증 ---
-    gw = ComplianceGateway(vcr_threshold=args.threshold, nli_fn=nli, doi_resolver=resolver)
+    gw = ComplianceGateway(vcr_threshold=args.threshold, nli_fn=nli, verifier=verifier)
     compliant_pass = compliant_total = 0
     violation_caught = violation_total = 0
     for item in evals:

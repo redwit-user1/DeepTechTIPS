@@ -64,3 +64,25 @@ def fake_doi(real_doi: str) -> str:
     """형식은 유효하나 존재하지 않는 DOI(유형 A)."""
     # bioRxiv DOI 패턴을 흉내내되 식별번호를 바꾼다
     return "10.1101/2024.99.99.999999"
+
+
+# 서지 변조용 실존 저자 풀(다른 논문의 실제 저자 → '실존하지만 틀린' 귀속)
+_SWAP_AUTHORS = ("Zhang et al.", "Smith et al.", "Nakamura et al.", "Muller et al.")
+
+
+def tamper_biblio(citation: str, real_surname: str) -> Optional[str]:
+    """실존 DOI 는 그대로 두고 **저자만** 다른 실존 성으로 교체.
+
+    가장 탐지하기 어려운 유형: DOI 존재 여부만 확인하는 검증기(binary resolver)는
+    통과시키지만, 실제로는 잘못된 연구자에게 성과를 귀속시킨다.
+    → ALCOA+ 'Attributable'(귀속가능) 직접 위반.
+    """
+    for cand in _SWAP_AUTHORS:
+        if not cand.lower().startswith(real_surname.lower()[:3]):
+            return citation.replace(f"{real_surname} et al.", cand)
+    return None
+
+
+def tamper_year(citation: str, real_year: int) -> str:
+    """실존 DOI + 연도만 변조(서지 드리프트)."""
+    return citation.replace(f"({real_year})", f"({real_year - 5})")

@@ -45,6 +45,10 @@ class SFTConfig:
     grad_accum: int = 8
     max_seq_len: int = 2048
     bf16: bool = True
+    # Unsloth 백엔드: 학습 가속 + VRAM 절감(장문맥 3배 빠름/30% 절감).
+    # 멀티GPU 는 torchrun/accelerate DDP 로 구동. → docs/UPSTREAM_TECH.md
+    use_unsloth: bool = True
+    load_in_4bit: bool = False                 # QLoRA(A100 80GB면 불필요)
     lora: LoRAConfig = field(default_factory=LoRAConfig)
 
     def model_id(self) -> str:
@@ -64,6 +68,8 @@ class DPOConfig:
     grad_accum: int = 8
     max_seq_len: int = 2048
     bf16: bool = True
+    use_unsloth: bool = True
+    load_in_4bit: bool = False
     # 채택 기준: VCR≥threshold 쌍만 학습(합성 순환오류 방지, 사업계획서 p.20)
     vcr_accept_threshold: float = 0.0          # 0=필터 없음, 0.7 권장(RLAIF)
     lora: LoRAConfig = field(default_factory=LoRAConfig)
@@ -74,15 +80,30 @@ class DPOConfig:
 
 @dataclass
 class GRPOConfig:
+    """GRPO(RLVR) 설정.
+
+    기본값은 2026 커뮤니티 권장치(num_generations=8, temperature=0.8, beta=0.04)를
+    따른다 — 사업계획서의 'N=8 샘플링'과도 일치. → docs/UPSTREAM_TECH.md
+    """
+
     base_model: str = "exaone"
     dpo_adapter: str = "checkpoints/dpo"
     output_dir: str = "checkpoints/grpo"
-    num_generations: int = 8                   # 질의당 N=8 샘플링
+    num_generations: int = 8                   # 질의당 N=8 (안정적 어드밴티지 최소값)
+    temperature: float = 0.8
     lr: float = 1e-6
     beta: float = 0.04                         # KL 계수
     kl_rollback_threshold: float = 0.60        # VCR<0.60 시 자동 롤백
     per_device_batch_size: int = 1
     grad_accum: int = 16
+    max_prompt_len: int = 1024
+    max_completion_len: int = 512
+    # 보상 스케일: VCR 은 [0,1]. RLVR 권장은 [-1,1] → 선택적 재스케일.
+    reward_rescale_to_signed: bool = True
+    # vLLM 생성 가속 (A100 2장: server 모드로 생성/학습 GPU 분리 권장)
+    use_vllm: bool = True
+    vllm_mode: str = "server"                  # server | colocate
+    vllm_gpu_memory_utilization: float = 0.30  # colocate 시 생성에 할당할 비율
 
     def model_id(self) -> str:
         return BASE_MODELS.get(self.base_model, self.base_model)

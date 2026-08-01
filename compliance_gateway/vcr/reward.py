@@ -31,11 +31,13 @@ def compute_vcr(
     citations: Optional[list[Citation]] = None,
     nli_fn: Optional[NLIFn] = None,
     doi_resolver: Optional[DOIResolver] = None,
+    verifier=None,
 ) -> VCRBreakdown:
     """응답의 VCR 보상 점수를 계산한다.
 
     weights 합이 1이 아니면 정규화한다.
     nli_fn / doi_resolver 미주입 시 휴리스틱으로 동작한다.
+    verifier(CitationVerifier) 주입 시 3-class 서지 검증으로 Halluc 정밀도가 올라간다.
     """
     w = dict(weights or DEFAULT_WEIGHTS)
     total = sum(w.values()) or 1.0
@@ -46,7 +48,7 @@ def compute_vcr(
     se = source_exist(response, cits)
     sm = source_match(response, cits, grounding, nli_fn=nli_fn)
     al = alcoa_score(response, model_id=model_id)
-    ha = halluc(response, cits, grounding, doi_resolver=doi_resolver)
+    ha = halluc(response, cits, grounding, doi_resolver=doi_resolver, verifier=verifier)
 
     vcr = (
         w["source_exist"] * se

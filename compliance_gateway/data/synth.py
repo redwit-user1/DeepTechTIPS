@@ -16,8 +16,10 @@ from compliance_gateway.data.extract import claim_sentences
 from compliance_gateway.data.models import DPOPair, GatewayEvalItem, Preprint
 from compliance_gateway.data.tamper import (
     fake_doi,
+    tamper_biblio,
     tamper_number,
     tamper_polarity,
+    tamper_year,
 )
 
 DEFAULT_SEED = Path("compliance_gateway/data/seed/biorxiv_pharma.json")
@@ -59,6 +61,17 @@ def _negatives(claim: str, pp: Preprint) -> list[tuple[str, str, str | None]]:
     tpol = tamper_polarity(claim)
     if tpol and tpol != claim:
         out.append(("polarity_flip", _cited(tpol, pp), "C"))
+
+    # 서지 변조 — 실존 DOI 유지 + 저자만 다른 실존 성으로 교체.
+    # DOI 존재 여부만 보는 검증기는 통과시킴 → 3-class 서지 검증이 필요한 케이스.
+    # ALCOA+ 'Attributable' 위반.
+    cited = _cited(claim, pp)
+    tbib = tamper_biblio(cited, pp.first_author)
+    if tbib and tbib != cited:
+        out.append(("biblio_tamper", tbib, "A"))
+
+    # 연도 드리프트 — 실존 DOI + 연도만 변조
+    out.append(("year_drift", tamper_year(cited, pp.year), "A"))
 
     return out
 

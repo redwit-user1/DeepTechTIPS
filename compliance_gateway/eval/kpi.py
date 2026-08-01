@@ -107,17 +107,52 @@ def _print_report(m: dict, backend: str) -> None:
     print("\n* 현재는 통계 NLI(v0.5) baseline. A100에서 트랜스포머 NLI 주입 시 재측정 → KPI 개선 확인.")
 
 
+def _print_comparison(rows: list[tuple[str, dict]]) -> None:
+    """서지 검증 백엔드 간 KPI 비교표."""
+    print("\n=== 백엔드 비교 ===")
+    names = [n for n, _ in rows]
+    print(f"{'지표':22s}" + "".join(f"{n:>18s}" for n in names))
+    print("-" * (22 + 18 * len(names)))
+    for key, label in [
+        ("violation_precision", "위반탐지 Precision"),
+        ("violation_recall", "위반탐지 Recall"),
+        ("violation_f1", "위반탐지 F1"),
+        ("compliant_pass_rate", "compliant PASS"),
+    ]:
+        print(f"{label:22s}" + "".join(f"{m[key]*100:17.1f}%" for _, m in rows))
+
+    all_types = sorted({t for _, m in rows for t in m["per_type_detection"]})
+    print("\n환각 유형별 탐지율:")
+    print(f"{'유형':22s}" + "".join(f"{n:>18s}" for n in names))
+    for t in all_types:
+        print(f"{t:22s}" + "".join(
+            f"{m['per_type_detection'].get(t, 0)*100:17.1f}%" for _, m in rows
+        ))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--eval", default=None, help="gateway_eval.jsonl 경로(없으면 시드 생성)")
     ap.add_argument("--threshold", type=float, default=0.55)
+    ap.add_argument("--compare", action="store_true",
+                    help="binary resolver vs 3-class verifier 비교")
     a = ap.parse_args()
 
     items = load_eval_items(a.eval)
-    resolver = make_doi_resolver({pp.doi for pp in load_seed()})
-    gw = ComplianceGateway(vcr_threshold=a.threshold, nli_fn=StatisticalNLI(), doi_resolver=resolver)
+    nli = StatisticalNLI()
+    from compliance_gateway.verify import CitationVerifier, LocalRegistry
+
+    verifier = CitationVerifier([LocalRegistry.from_seed()])
+    gw = ComplianceGateway(vcr_threshold=a.threshold, nli_fn=nli, verifier=verifier)
     m = evaluate(gw, items)
-    _print_report(m, backend="statistical-v0.5")
+    _print_report(m, backend="statistical-v0.5 + 3-class verifier")
+
+    if a.compare:
+        gw_bin = ComplianceGateway(
+            vcr_threshold=a.threshold, nli_fn=nli,
+            doi_resolver=make_doi_resolver({pp.doi for pp in load_seed()}),
+        )
+        _print_comparison([("binary", evaluate(gw_bin, items)), ("3-class", m)])
 
 
 if __name__ == "__main__":

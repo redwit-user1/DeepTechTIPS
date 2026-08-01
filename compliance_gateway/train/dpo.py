@@ -18,12 +18,12 @@ from compliance_gateway.train.data_format import dpo_pairs_to_dpo, write_jsonl
 
 
 def run(cfg: DPOConfig) -> None:
-    import torch  # noqa: F401
     from datasets import load_dataset
     from peft import LoraConfig
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     from trl import DPOConfig as TRLDPOConfig
     from trl import DPOTrainer
+
+    from compliance_gateway.train.loader import apply_lora, load_model_and_tokenizer
 
     # 채택 기준 적용 후 임시 파일로 기록
     records = dpo_pairs_to_dpo(cfg.dataset_path, vcr_accept_threshold=cfg.vcr_accept_threshold)
@@ -31,14 +31,14 @@ def run(cfg: DPOConfig) -> None:
     write_jsonl(records, tmp.name)
     print(f"[DPO] accepted pairs: {len(records)} (threshold={cfg.vcr_accept_threshold})")
 
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model_id(), trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        cfg.model_id(), torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float16,
-        device_map="auto", trust_remote_code=True,
+    model, tokenizer, unsloth_used = load_model_and_tokenizer(
+        cfg.model_id(), max_seq_len=cfg.max_seq_len,
+        load_in_4bit=cfg.load_in_4bit, use_unsloth=cfg.use_unsloth, bf16=cfg.bf16,
     )
     dataset = load_dataset("json", data_files=tmp.name, split="train")
 
-    peft_config = LoraConfig(
+    model = apply_lora(model, cfg.lora, unsloth_used, max_seq_len=cfg.max_seq_len)
+    peft_config = None if unsloth_used else LoraConfig(
         r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
         target_modules=list(cfg.lora.target_modules), task_type="CAUSAL_LM",
     )

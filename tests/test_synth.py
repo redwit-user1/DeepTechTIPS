@@ -46,18 +46,48 @@ def test_build_examples_produces_pairs_and_evals():
 
 
 def test_vcr_self_validation_chosen_beats_rejected():
-    """핵심 불변식: 모든 DPO 쌍에서 VCR(chosen) > VCR(rejected)."""
+    """핵심 불변식: 3-class 서지 검증 사용 시 VCR(chosen) > VCR(rejected)."""
+    from compliance_gateway.verify import CitationVerifier, LocalRegistry
+
     pps = load_seed()
     pairs, _ = build_examples(pps, max_claims=4)
-    resolver = make_doi_resolver({p.doi for p in pps})
+    verifier = CitationVerifier([LocalRegistry.from_seed()])
     nli = StatisticalNLI()
     wins = 0
     for p in pairs:
-        vc = compute_vcr(p.prompt, p.chosen, grounding=(p.grounding,), nli_fn=nli, doi_resolver=resolver).vcr
-        vr = compute_vcr(p.prompt, p.rejected, grounding=(p.grounding,), nli_fn=nli, doi_resolver=resolver).vcr
+        vc = compute_vcr(p.prompt, p.chosen, grounding=(p.grounding,), nli_fn=nli, verifier=verifier).vcr
+        vr = compute_vcr(p.prompt, p.rejected, grounding=(p.grounding,), nli_fn=nli, verifier=verifier).vcr
         wins += int(vc > vr)
     # 적어도 90% 이상에서 chosen 우위(통계 NLI 한계로 극성 일부 제외 가능)
     assert wins / len(pairs) >= 0.9
+
+
+def test_binary_resolver_misses_biblio_tampering():
+    """binary DOI resolver 의 구조적 한계 — 3-class 검증기 도입 근거.
+
+    '실존 DOI + 변조된 저자'는 DOI 존재 여부만 보는 검증기를 통과한다.
+    이 한계가 CitationVerifier(3-class) 도입의 이유다.
+    """
+    from compliance_gateway.verify import CitationVerifier, LocalRegistry
+
+    pps = load_seed()
+    pairs, _ = build_examples(pps, max_claims=4)
+    biblio = [p for p in pairs if p.rejected_kind == "biblio_tamper"]
+    assert biblio, "서지 변조 샘플이 생성되어야 함"
+
+    resolver = make_doi_resolver({p.doi for p in pps})
+    verifier = CitationVerifier([LocalRegistry.from_seed()])
+    p = biblio[0]
+
+    # binary: chosen 과 rejected 를 구분하지 못함(둘 다 DOI 실존)
+    v_bin_c = compute_vcr(p.prompt, p.chosen, grounding=(p.grounding,), doi_resolver=resolver).vcr
+    v_bin_r = compute_vcr(p.prompt, p.rejected, grounding=(p.grounding,), doi_resolver=resolver).vcr
+    assert v_bin_c == v_bin_r
+
+    # 3-class: 서지 변조를 감지해 rejected 를 감점
+    v_ver_c = compute_vcr(p.prompt, p.chosen, grounding=(p.grounding,), verifier=verifier).vcr
+    v_ver_r = compute_vcr(p.prompt, p.rejected, grounding=(p.grounding,), verifier=verifier).vcr
+    assert v_ver_c > v_ver_r
 
 
 def test_fake_doi_detected_as_hallucination():

@@ -16,21 +16,22 @@ from compliance_gateway.train.config import SFTConfig
 
 def run(cfg: SFTConfig) -> None:
     # 지연 임포트: torch/transformers/trl/peft 는 A100 환경에서만 필요.
-    import torch  # noqa: F401
     from datasets import load_dataset
     from peft import LoraConfig
-    from transformers import AutoModelForCausalLM, AutoTokenizer
     from trl import SFTConfig as TRLSFTConfig
     from trl import SFTTrainer
 
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model_id(), trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        cfg.model_id(), torch_dtype=torch.bfloat16 if cfg.bf16 else torch.float16,
-        device_map="auto", trust_remote_code=True,
+    from compliance_gateway.train.loader import apply_lora, load_model_and_tokenizer
+
+    model, tokenizer, unsloth_used = load_model_and_tokenizer(
+        cfg.model_id(), max_seq_len=cfg.max_seq_len,
+        load_in_4bit=cfg.load_in_4bit, use_unsloth=cfg.use_unsloth, bf16=cfg.bf16,
     )
     dataset = load_dataset("json", data_files=cfg.dataset_path, split="train")
 
-    peft_config = LoraConfig(
+    # Unsloth 경로는 네이티브 PEFT 부착, HF 경로는 TRL 에 peft_config 전달
+    model = apply_lora(model, cfg.lora, unsloth_used, max_seq_len=cfg.max_seq_len)
+    peft_config = None if unsloth_used else LoraConfig(
         r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
         target_modules=list(cfg.lora.target_modules), task_type="CAUSAL_LM",
     )

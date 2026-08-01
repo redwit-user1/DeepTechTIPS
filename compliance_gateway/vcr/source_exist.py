@@ -19,24 +19,55 @@ _AUTHOR_YEAR = re.compile(
 )
 
 
-def extract_citations(text: str) -> list[Citation]:
-    """텍스트에서 인용 후보를 추출한다."""
-    citations: list[Citation] = []
+# 같은 참고문헌으로 볼 최대 문자 간격(예: "(Kim et al. (2024); DOI: 10.x/y)")
+_MERGE_WINDOW = 60
+
+
+def extract_citations(text: str, merge: bool = True) -> list[Citation]:
+    """텍스트에서 인용 후보를 추출한다.
+
+    merge=True 면 서로 인접한 (저자-연도) + (DOI/URL) 조각을 **하나의 참고문헌**으로
+    병합한다. 병합해야 서지 검증기가 'DOI 는 실존하나 저자/연도가 다름'(서지 변조)을
+    판정할 수 있다 — 분리돼 있으면 대조할 메타데이터가 없어 무조건 통과된다.
+    """
+    found: list[tuple[int, int, Citation]] = []
 
     for m in _DOI.finditer(text):
-        doi = m.group(0).rstrip(").,;]")   # 끝의 닫는 괄호·구두점 제거
-        citations.append(Citation(raw=doi, doi=doi))
+        doi = m.group(0).rstrip(").,;]")
+        found.append((m.start(), m.start() + len(doi), Citation(raw=doi, doi=doi)))
     for m in _URL.finditer(text):
         url = m.group(0).rstrip(").,;]")
-        # URL 안에 DOI가 포함된 경우 중복 방지
         if not _DOI.search(url):
-            citations.append(Citation(raw=url, url=url))
+            found.append((m.start(), m.start() + len(url), Citation(raw=url, url=url)))
     for m in _AUTHOR_YEAR.finditer(text):
-        authors = (m.group(1),)
-        year = int(m.group(2))
-        citations.append(Citation(raw=m.group(0), authors=authors, year=year))
+        found.append(
+            (m.start(), m.end(), Citation(raw=m.group(0), authors=(m.group(1),), year=int(m.group(2))))
+        )
 
-    return citations
+    found.sort(key=lambda x: x[0])
+    if not merge:
+        return [c for _, _, c in found]
+
+    merged: list[Citation] = []
+    cur_start = cur_end = None
+    cur: Citation | None = None
+    for start, end, cit in found:
+        if cur is not None and start - cur_end <= _MERGE_WINDOW:
+            # 같은 참고문헌으로 간주 → 메타데이터 통합
+            cur.doi = cur.doi or cit.doi
+            cur.url = cur.url or cit.url
+            cur.title = cur.title or cit.title
+            cur.authors = cur.authors or cit.authors
+            cur.year = cur.year or cit.year
+            cur_end = max(cur_end, end)
+            cur.raw = text[cur_start:cur_end]
+            continue
+        cur = Citation(raw=cit.raw, doi=cit.doi, url=cit.url, title=cit.title,
+                       authors=cit.authors, year=cit.year)
+        cur_start, cur_end = start, end
+        merged.append(cur)
+
+    return merged
 
 
 def _split_claims(text: str) -> list[str]:

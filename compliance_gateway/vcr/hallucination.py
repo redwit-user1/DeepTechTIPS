@@ -78,14 +78,45 @@ def _type_c(text: str, grounding: tuple[str, ...]) -> float:
     return tampered / checked
 
 
+def _type_a_b_verified(citations: list[Citation], verifier) -> Optional[float]:
+    """CitationVerifier 기반 유형 A/B 점수(3-class 가중 감점).
+
+    이분법(있다/없다) 대신 VALID(0.0) / PARTIALLY_VALID(0.5) / HALLUCINATED(1.0)
+    로 감점해 '메타데이터 드리프트'(서지 변조)를 부분 반영한다.
+    UNVERIFIED(조회 실패)는 분모에서 제외 — 네트워크 문제로 정상 인용을 벌하지 않는다.
+    """
+    from compliance_gateway.verify.models import CitationStatus
+
+    if not citations:
+        return 0.0
+    penalties = []
+    for c in citations:
+        res = verifier.verify(c)
+        if res.status is CitationStatus.UNVERIFIED:
+            continue
+        penalties.append(res.penalty)
+    if not penalties:
+        return None      # 전부 미검증 → 휴리스틱으로 폴백
+    return sum(penalties) / len(penalties)
+
+
 def halluc(
     text: str,
     citations: list[Citation],
     grounding: tuple[str, ...] = (),
     doi_resolver: Optional[DOIResolver] = None,
+    verifier=None,
 ) -> float:
-    """환각 점수 [0, 1]. 0 = 환각 없음."""
-    ab = _type_a_b(citations, grounding, doi_resolver)
+    """환각 점수 [0, 1]. 0 = 환각 없음.
+
+    verifier(CitationVerifier) 주입 시 3-class 서지 검증을 우선 사용하고,
+    미주입·전부 미검증이면 기존 휴리스틱(doi_resolver)으로 폴백한다.
+    """
+    ab: Optional[float] = None
+    if verifier is not None:
+        ab = _type_a_b_verified(citations, verifier)
+    if ab is None:
+        ab = _type_a_b(citations, grounding, doi_resolver)
     c = _type_c(text, grounding)
     # 두 신호의 최댓값(보수적): 한 유형이라도 강하게 탐지되면 높은 환각.
     return max(ab, c)
