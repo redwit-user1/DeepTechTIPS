@@ -95,6 +95,7 @@ python -m compliance_gateway.data.korean.build_kr
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).
+차단된 소스의 확보 절차(브라우저 에이전트 활용 포함): [`docs/DATA_ACQUISITION.md`](docs/DATA_ACQUISITION.md).
 
 ## H100 학습 계획 (KT Cloud AI Nexus)
 
