@@ -114,3 +114,87 @@ def test_arxiv_parser_works_offline():
     assert recs[0]["arxiv_id"] == "2401.00001v1"
     assert "Korean R&D Data" in recs[0]["title"]
     assert recs[0]["authors"] == ("Hong Gildong",)
+
+
+# ── 실데이터 평가셋 (변조 없음, 출처 기반 라벨) ────────────────────────
+
+def test_real_protocols_are_verbatim_source_text():
+    """실데이터셋의 주장 값은 원문 그대로여야 한다(우리가 만들지 않음)."""
+    from compliance_gateway.data.korean.real_eval import build, load_protocols
+
+    protocols = load_protocols()
+    assert len(protocols) >= 9
+    items, _ = build(protocols)
+
+    by_id = {t["nct_id"]: t for t in protocols}
+    for it in items:
+        if it["label"] != "compliant" or it["field"] != "primary_outcome":
+            continue
+        t = by_id[it["source_id"]]
+        # 실제 primary_outcome 원문이 응답에 그대로 들어 있어야 함
+        assert t["primary_outcome"] in it["response"]
+        # 근거도 실제 프로토콜 원문
+        assert t["brief_summary"] in it["grounding"]
+
+
+def test_real_negatives_come_from_other_real_trials():
+    """음성은 '다른 실제 과제의 원문'이어야 한다 — 규칙 변조가 아님."""
+    from compliance_gateway.data.korean.real_eval import build, load_protocols
+
+    protocols = load_protocols()
+    items, _ = build(protocols)
+    outcomes = {t["primary_outcome"] for t in protocols}
+
+    negatives = [i for i in items
+                 if i["label"] == "misattributed_primary_outcome"]
+    assert negatives
+    for neg in negatives:
+        # 잘못 귀속된 값이 실제 다른 과제의 결과변수 중 하나여야 한다
+        assert any(o in neg["response"] for o in outcomes)
+
+
+def test_real_eval_is_balanced_and_covers_alcoa():
+    from compliance_gateway.data.korean.real_eval import build, load_protocols
+
+    items, pairs = build(load_protocols())
+    n_ok = sum(1 for i in items if i["label"] == "compliant")
+    assert n_ok == len(items) - n_ok          # 균형
+    attrs = {i["alcoa_violation"] for i in items if i["alcoa_violation"]}
+    assert {"Accurate", "Attributable", "Complete"} <= attrs
+    assert pairs
+
+
+def test_real_dataset_is_harder_than_template():
+    """실데이터셋은 템플릿 합성셋보다 반드시 어려워야 한다.
+
+    템플릿에서 AUC 1.0 이 나오는 것은 인공물이다. 실데이터 AUC 가 그보다
+    낮게 유지되는지 회귀 감시한다(쉬워졌다면 데이터가 오염된 것).
+    """
+    from compliance_gateway.data.korean.build_kr import build_items as tmpl_build
+    from compliance_gateway.data.korean.build_kr import build_registry as tmpl_reg
+    from compliance_gateway.data.korean.real_eval import (
+        build as real_build, build_registry as real_reg, load_protocols,
+    )
+    from compliance_gateway.eval.benchmark import auc
+    from compliance_gateway.nli.statistical import StatisticalNLI
+    from compliance_gateway.vcr.reward import compute_vcr
+    from compliance_gateway.verify import CitationVerifier
+
+    nli = StatisticalNLI()
+
+    def auc_of(items, registry):
+        v = CitationVerifier([registry])
+        pos, neg = [], []
+        for e in items:
+            s = compute_vcr(e["query"], e["response"], grounding=(e["grounding"],),
+                            nli_fn=nli, verifier=v).vcr
+            (pos if e["label"] == "compliant" else neg).append(s)
+        return auc(pos, neg)
+
+    protocols = load_protocols()
+    real_auc = auc_of(real_build(protocols)[0], real_reg(protocols))
+    tmpl_items, _ = tmpl_build(load_kr_seed())
+    tmpl_auc = auc_of(tmpl_items, tmpl_reg(load_kr_seed()))
+
+    assert real_auc < tmpl_auc, "실데이터가 템플릿보다 쉬우면 데이터 구성이 잘못된 것"
+    assert real_auc > 0.5, "완전 무작위면 신호가 전혀 없다는 뜻"

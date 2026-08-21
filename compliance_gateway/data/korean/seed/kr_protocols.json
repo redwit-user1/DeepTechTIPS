@@ -1,0 +1,179 @@
+[
+ {
+  "nct_id": "NCT04072705",
+  "sponsor": "Gangnam Severance Hospital",
+  "sponsor_ko": "강남세브란스병원",
+  "title": "A Multicenter Prospective observationaL Study to evAluate the effecT of Clopidogrel on the prEvention of Major vascuLar Events According to the gEnotype of Cytochrome P450 2C19 in Ischemic Stroke paTients; PLATELET Study",
+  "enrollment": 2927,
+  "start_date": "2019-09-20",
+  "conditions": [
+   "Acute Ischemic Stroke"
+  ],
+  "brief_summary": "The hypothesis of this study is that \"the poor metabolizer or intermediate metabolizer of the cytochrome P450 2C19 genotype in patients with acute ischemic stroke is associated with increased risk of composite cardiovascular events (recurrent stroke, myocardial infarction, cardiovascular death) compared to those who of extensive metabolizer of the cytochrome P450 2C19 genotype\".",
+  "detailed_description": "Clopidogrel, one of the antiplatelet agents used for secondary prevention in patients with ischemic stroke and coronary artery disease, has been shown to have a superior antiplatelet effect compared to aspirin. Clopidogrel inhibits platelet-derived ADP receptor, P2Y12, in the liver to produce an anti-platelet effect. Previous studies reported that the genotypes of Cytochrome P450 2C19, which is involved in the metabolism of clopidogrel in the liver, lead to differences in drug response and recurrence rates of cardiovascular disease. The risk of recurrence of ischemic stroke was reported to be about 4 times higher in patients with a poor metabolizer or intermediate metabolizer genotype of the Cytochrome P450 2C19 genotype compared to the extensive metabolizer genotype.",
+  "primary_outcome": "Occurrence of composite cardiovascular events (recurrent stroke, myocardial infarction, cardiovascular death)",
+  "inclusion": "Ischemic stroke confirmed by brain CT or MRI",
+  "sites": [
+   "Yongin Severance Hospital",
+   "Korea University Ansan Hospital",
+   "Hallym University Sacred Heart Hospital",
+   "Kyungpook National University Hospital",
+   "Seoul National University Hospital",
+   "Chung-Ang University Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT03403972",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "A Clinical Trial to Evaluate the Effects of the Environmental Change in Intestine by Antibiotics on the Pharmacokinetic Characteristics of Simvastatin in Healthy Male Volunteers",
+  "enrollment": 6,
+  "start_date": "2017-12-06",
+  "conditions": [
+   "Simvastatin Pharmacokinetics and Gut Microbiome"
+  ],
+  "brief_summary": "This phase 1 clinical trial is to evaluate the effects of the environmental change in intestine by antibiotics on the pharmacokinetic characteristics of simvastatin in healthy male volunteers. For change of intestine environment, especially the gut microbiota, investigators will administer PO vancomycin for 7 days, tid.",
+  "detailed_description": null,
+  "primary_outcome": "Compare the maximum plasma concentration (Cmax) of simvastatin before and after vancomycin PO treatment.",
+  "inclusion": "Age between 19 Y to 50 Y at the screening; Body weight over 55 kg and BMI should be between 18.0 to 25.0 kg/m2",
+  "sites": [
+   "Seoul National University Hospital Clinical Trial Center"
+  ]
+ },
+ {
+  "nct_id": "NCT06138769",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Multicenter Phase 2 Trial of Lenvatinib in Patients With Unresectable or Metastatic Hepatocellular Carcinoma After Progression on First-line Atezolizumab Plus Bevacizumab",
+  "enrollment": 50,
+  "start_date": "2023-07-20",
+  "conditions": [
+   "Hepatocellular Carcinoma"
+  ],
+  "brief_summary": "Although atezolizumab-bevacizumab has been positioned as the standard first-line therapy in unresectable heptocellular carcinoma, eventually most patients progressed on this regimen. Lenvatinib is approved first-line multikinase inhibitor in unresectable hepatocellular carcinoma, but has not yet been investigated as second-line therapy in prospective study. In this single arm phase 2 study, the efficacy and safety of lenvatinib will be investigated for patients who progressed on first-line atezolizumab-bevacizumab.",
+  "detailed_description": null,
+  "primary_outcome": "Progression-free survival: Time interval between the start of lenvatinb to the disease progression or any cause of death.",
+  "inclusion": "Diagnosis of HCC according to AASLD guidelines; Prior treatment with atezolizumab plus bevacizumab as first-line treatment for unresectable HCC",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT05742438",
+  "sponsor": "Samsung Medical Center",
+  "sponsor_ko": "삼성서울병원",
+  "title": "Effect of Dexmedetomidine Infusion, Lidocaine Infusion, and Intrathecal Morphine Injection on Biomarker for Perioperative Stress and Immune Response, and Cancer Progression and Metastasis in Colorectal Cancer Surgery",
+  "enrollment": 114,
+  "start_date": "2023-04-12",
+  "conditions": [
+   "Colorectal Cancer",
+   "Anesthesia"
+  ],
+  "brief_summary": "This is a prospective randomized controlled trial. Investigators aimed to compare the effect of three different anesthetic adjuvants (continuous infusion of lidocaine or dexmedetomidine, intrathecal morphine injection) on the biomarker for cancer recurrence and metastasis. Patients undergoing elective colorectal cancer surgery will be randomly allocated to three parallel arms.",
+  "detailed_description": "Perioperative period is critical in determining the risk of postoperative metastatic disease. Surgical damage and related stress response could suppress cell-mediated immunity and facilitate malignant cell survival, motility, invasion and proliferation. Increasing evidence supported that the continuous infusion of lidocaine or dexmedetomidine, or intrathecal morphine were associated with the reduction of postoperative pain and opioid consumption and improved the quality of recovery.",
+  "primary_outcome": "MMP-9: plasma Matrix metalloproteinase-9, measured 1 hour after surgery",
+  "inclusion": "Patients who were scheduled for elective colorectal cancer surgery American Society of Anesthesiologists physical status of I-III",
+  "sites": [
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT02338375",
+  "sponsor": "Samsung Medical Center",
+  "sponsor_ko": "삼성서울병원",
+  "title": "Clinical Trial of the Safety and Efficacy of Allogenic Umbilical Cord Blood-derived Mesenchymal Stem Cell Product With Microfracture for Osteochondral Lesion of Talus Patients",
+  "enrollment": 28,
+  "start_date": "2012-12",
+  "conditions": [
+   "Osteochondral Lesion of Talus"
+  ],
+  "brief_summary": "The purpose of this study is to evaluate the safety and efficacy of adding allogenic umbilical cord blood-derived stem cell product(Cartistem) on currently standard treatment of arthroscopic curettage and microfracture for osteochondral lesion of talus.",
+  "detailed_description": null,
+  "primary_outcome": "Efficacy of adding allogenic umbilical cord blood-derived stem cell product measured by American Orthopaedic Foot and Ankle Society (AOFAS) HINDFOOT/ANKLE SCALE",
+  "inclusion": "Non-responder to conservative treatment for radiographically confirmed (by MRI) osteochondral lesion of talus with ankle pain and/or stiffness and less than 75 of the AOFAS score; Age between 20 and 70 year-old",
+  "sites": [
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT05578131",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "The Effectiveness of Preoxygenation and Apneic Oxygenation Using High-flow Nasal Cannula for Pediatric Anesthetic Induction: a Prospective Randomized Open-label Clinical Trial",
+  "enrollment": 132,
+  "start_date": "2022-10-21",
+  "conditions": [
+   "Oxygen Deficiency"
+  ],
+  "brief_summary": "Endotracheal intubation in infants often involves more than one attempt, and oxygen desaturation is common. The investigators tested the hypothesis that high-flow nasal oxygen cannulae would be effective in maintaining oxygen saturation during intubation than facemasks for pre-oxygenation. The investigators randomly allocated 132 patients undergoing elective surgery aged <=12 months to pre-oxygenation using either high-flow nasal oxygen or facemask.",
+  "detailed_description": null,
+  "primary_outcome": "Occurrence of oxygen desaturation <95% from induction of anesthesia to 1 minutes after intubation",
+  "inclusion": "Infants undergoing general anesthesia with endotracheal intubation.",
+  "sites": [
+   "Seoul National University Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT04825002",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Detection of Clinically Significant Prostate Cancer Using a Urinary Multimarker Sensor",
+  "enrollment": 800,
+  "start_date": "2021-03-22",
+  "conditions": [
+   "Prostate Cancer"
+  ],
+  "brief_summary": "This trial aims to develop and validate the urinary multimarker sensor which can measure trace amounts of biomarkers from naturally voided urine in men referred with clinical suspicion of prostate cancer who have had no prior prostate biopsy. The investigators hypothesize that urinary multimarker sensor will help to avoid unnecessary prostate biopsy while detect the clinically significant cancers.",
+  "detailed_description": "The investigators will develop a urinary multimarker sensor, able to measure trace amounts of biomarkers from naturally voided urine. Biomarkers diffused passively from prostate tissue to the urethra and will be collected from naturally voided urine. To measure the electrical signals from the four different biomarkers in the urine, the four sensing channels in the extended gate of an field-effect transistor biosensor will be conjugated to antibodies, thus capturing different biomarkers. After 20 min of reaction time in the four channels, the bottom gate voltage shifts will be measured at the reference current (1 nA).",
+  "primary_outcome": "Presence vs. absence of clinically significant prostate cancer on prostate biopsy (>=Gleason score 3+4)",
+  "inclusion": "Men undergoing a first-time prostate biopsy to rule out cancer; Serum PSA >=3ng/mL, <=20ng/mL; Age>=50 years, <=80 years",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT03651557",
+  "sponsor": "GNT Pharma",
+  "sponsor_ko": "지엔티파마",
+  "title": "A Phase II, Double-blind, Randomized, Placebo-controlled, Multicenter Trial to Assess the Efficacy and Safety of Neu2000KWL in Patients Who Resuscitated After Out-of-hospital Cardiac Arrest Patient and Receiving Therapeutic Hypothermia",
+  "enrollment": 150,
+  "start_date": "2018-11-29",
+  "conditions": [
+   "Cardiac Arrest"
+  ],
+  "brief_summary": "This study aims to investigate the efficacy and safety of Neu2000KWL, a neuroprotectant, in patients resuscitated from out-of-hospital cardiac arrest and receiving therapeutic hypothermia.",
+  "detailed_description": "Lack of good neurological recovery is the biggest hurdle in the treatment of out-of-hospital cardia arrest. Neu2000KWL, a N-Methyl-D-aspartate (NMDA) receptor antagonist and an antioxidant, attenuated cerebral neuronal death and reduced hypoxic injury of brain in preclinical studies. Phase I clinical study has revealed that Neu2000KWL is very safe for treating human. In current study, the investigators will assess the efficacy of Neu2000KWL to compare the neurological biomarker, brain imaging, and clinical outcomes of patients successfully resuscitated from out-of-cardiac arrest treated by 3-day infusion of Neu2000KWL with patients assigned to placebo arm.",
+  "primary_outcome": "Verification of difference of Neuron specific enolase (NSE) value after 4th infusion of Neu2000KWL",
+  "inclusion": "Out-of-hospital cardiac arrest caused by non-perfusing cardiac rhythm; Successful resuscitation accompanied by ROSC time of more than 20 min",
+  "sites": [
+   "Kyungpook National University Hospital",
+   "Soonchunhyang University Bucheon Hospital",
+   "Pusan National University Hospital",
+   "Chonnam National University Hospital",
+   "Gangnam Severance Hospital",
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT06782984",
+  "sponsor": "Chungnam National University Hospital",
+  "sponsor_ko": "충남대학교병원",
+  "title": "Patient-derived Organoids As Predictive Models for Drug Response Testing and Repurporsing in Glioblastoma Therapy",
+  "enrollment": 150,
+  "start_date": "2021-08-18",
+  "conditions": [
+   "Glioblastoma"
+  ],
+  "brief_summary": "The aim of this observational study, based on a prospectively collected cohort, is to evaluate the prognostic value of patient-derived organoids in predicting responses to conventional and repurposing drugs, including temozolomide, in patients with primary or recurrent glioblastoma. The primary question is whether the patient's response to temozolomide is recapitulated in their corresponding patient-derived glioblastoma organoid (GBO).",
+  "detailed_description": "Glioblastoma multiforme (GBM) remains a highly aggressive brain tumor with limited treatment options and a poor prognosis. Temozolomide (TMZ) is the only approved first-line therapy, but frequent resistance limits its efficacy. In our previous study, we established 20 GBO lines using a serum-free protocol, preserving the histopathological and genomic features of the parental tumors. GBO Drug Sensitivity Testing (GBO-DST) was developed to evaluate TMZ responsiveness and to screen several FDA-approved drugs, including Lazertinib and Regorafenib. This study aims to establish 100 GBO lines, targeting the enrollment of 150 patients, considering a previous success rate of 66.7% for GBO establishment.",
+  "primary_outcome": "progression-free survival: Radiologic progression time following the RANO 2.0 criteria, 12 months after surgery",
+  "inclusion": "primary or recurrent glioblastoma; patients treated with standard treatment including surgery and temozolomide based chemoradiation therapy",
+  "sites": [
+   "Chungnam National University Hospital",
+   "Soonchunhyang University Hospital",
+   "Keimyung University Hospital",
+   "Yeungnam University Hospital",
+   "Dong-A University Hospital"
+  ]
+ }
+]

@@ -43,7 +43,18 @@ ALCOA_KO = {
 }
 
 
-def build_eval() -> tuple[list[dict], object, list[dict]]:
+def build_eval(real: bool = False) -> tuple[list[dict], object, list[dict]]:
+    """real=True 면 **실데이터 평가셋**(변조 없음, 출처 기반 라벨)을 쓴다."""
+    if real:
+        from compliance_gateway.data.korean.real_eval import (
+            build as build_real, build_registry as reg_real, load_protocols,
+        )
+        protocols = load_protocols()
+        evals, _ = build_real(protocols)
+        items = [{"query": e["query"], "response": e["response"],
+                  "grounding": e["grounding"], "label": e["label"]} for e in evals]
+        return items, reg_real(protocols), evals
+
     records = load_kr_seed()
     evals, pairs = build_items(records)
     items = [
@@ -60,9 +71,13 @@ def main() -> None:
     ap.add_argument("--sweep", action="store_true")
     ap.add_argument("--nli", default=None, help="트랜스포머 NLI 경로(선택)")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--real", action="store_true",
+                    help="실데이터 평가셋 사용(변조 없음 — 성능 주장의 진짜 근거)")
     a = ap.parse_args()
 
-    items, registry, evals = build_eval()
+    items, registry, evals = build_eval(real=a.real)
+    if a.real:
+        print("데이터셋: 실데이터 KR (교차 귀속 오류, 원문 변조 없음)")
     n_ok = sum(1 for i in items if i["label"] == "compliant")
     print(f"국내 R&D 한국어 평가셋: {len(items)}건 (compliant {n_ok} / 위반 {len(items)-n_ok})")
 
@@ -106,11 +121,29 @@ def main() -> None:
             print(f"{th:6.2f} {mm['violation_precision']*100:7.1f}% {mm['violation_recall']*100:7.1f}%"
                   f" {mm['violation_f1']*100:7.1f}% {mm['compliant_pass_rate']*100:7.1f}%{flag}")
 
-    print("\n" + "=" * 66)
-    print("⚠️  이 수치는 규칙 기반 변조 합성셋 기준이다. 낙관 편향이 있으며")
-    print("    외부 실데이터(SciFact F1 39.3%)와 직접 비교할 수 없다.")
-    print("    한국어 KPI 주장에는 ScienceON/KCI 기반 외부 평가셋이 필요하다(미확보).")
-    print("=" * 66)
+    # 임계값 무관 변별력(AUC) — 임계값 착시를 배제한 진짜 지표
+    from compliance_gateway.eval.benchmark import auc
+    from compliance_gateway.vcr.reward import compute_vcr
+
+    v = CitationVerifier([registry])
+    pos, neg = [], []
+    for e in items:
+        sc = compute_vcr(e["query"], e["response"], grounding=(e["grounding"],),
+                         nli_fn=nli_fn, verifier=v).vcr
+        (pos if e["label"] == "compliant" else neg).append(sc)
+    if pos and neg:
+        print(f"\nAUC(임계값 무관 변별력) = {auc(pos, neg):.3f}"
+              f"   분리도 = {sum(pos)/len(pos) - sum(neg)/len(neg):+.4f}")
+
+    print("\n" + "=" * 70)
+    if a.real:
+        print("데이터: 국내 연구기관 실제 프로토콜 원문. 우리가 변조하지 않았고")
+        print("        음성은 '다른 실제 과제의 원문을 잘못 귀속'시킨 것이다.")
+        print("→ 한국어 성능 주장은 이 수치를 근거로 해야 한다(합성셋 아님).")
+    else:
+        print("⚠️  이 수치는 규칙 기반 변조 합성셋 기준이다. 낙관 편향이 있으며")
+        print("    실데이터(--real)와 직접 비교할 수 없다. 회귀 테스트 용도로만 쓸 것.")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

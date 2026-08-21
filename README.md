@@ -70,15 +70,26 @@ python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.
 # (C) 외부 실데이터 KPI — 합성 낙관편향 제거. 성능 주장의 진짜 근거
 python -m compliance_gateway.eval.external --split dev --sweep     # docs/EVAL_EXTERNAL.md
 
-# (D) 국내 R&D 한국어 데이터셋 (ALCOA+ 속성별 위반)
-python -m compliance_gateway.data.korean.build_kr                  # docs/DATASET_KR.md
-python -m compliance_gateway.eval.korean --sweep
+# (D) 국내 R&D 실데이터 — 국내 기관 실제 프로토콜 원문, 변조 없음
+python -m compliance_gateway.data.korean.real_eval                 # docs/DATASET_KR.md
+python -m compliance_gateway.eval.korean --real --threshold 0.64
+
+# (D-2) 국내 R&D 합성셋 (회귀 테스트 전용)
+python -m compliance_gateway.data.korean.build_kr
 ```
 
-> ⚠️ **성능 보고 원칙**: 합성 평가셋(EN F1 98.2% / KR F1 100%)은 회귀 테스트용이며
-> KPI 근거로 쓰지 않는다. **외부 실데이터 기준 현재 F1 24.0%**(dev) — 목표 90%까지는
-> 트랜스포머 NLI 도입이 필수 조건임을 임계값 스윕으로 확인했다.
-> 한국어 외부 평가셋은 **미확보**(ScienceON/KCI egress 차단) — 한국어 KPI 는 아직 주장 불가.
+> ⚠️ **성능 보고 원칙**: 합성 평가셋(EN F1 98.2% / KR F1 100%)은 회귀 테스트 전용이며
+> KPI 근거로 쓰지 않는다. **실데이터 기준 현재 상태**:
+>
+> | 평가셋 | 성격 | 결과 |
+> |---|---|---|
+> | 외부 EN (SciFact) | 전문가 주석 실데이터 | F1 **24.0%** (dev, θ=0.70) |
+> | **실데이터 KR** (국내 기관 프로토콜 원문) | 교차 귀속 오류, 변조 없음 | **AUC 0.715, 사용 가능한 운영점 없음** |
+> | 합성 EN / KR | 규칙 변조 | F1 98.2% / 100% ← 인공물 |
+>
+> 한국어 실데이터에서 위반 35건 **전부**가 정상 최저점 위에 있어 분포가 겹친다.
+> 최대 약점은 ALCOA+ `Accurate`(수치·결과변수 오귀속) **29.4%**.
+> 목표 90%까지는 트랜스포머 NLI 도입이 필수 조건.
 > [`docs/EVAL_EXTERNAL.md`](docs/EVAL_EXTERNAL.md) · [`docs/DATASET_KR.md`](docs/DATASET_KR.md)
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
