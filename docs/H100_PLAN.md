@@ -24,9 +24,53 @@ python scripts/probe_env.py --endpoint http://<서빙>/v1      # 서빙도 함�
 이 스크립트가 GPU 유무·개수·FP8 지원·학습 스택·데이터·엔드포인트를 확인하고
 **무엇을 실행하면 되는지** 알려준다.
 
+## 이 세션을 H100 으로 옮기기 (teleport) — 가장 확실한 방법
+
+현재 개발 세션은 Anthropic 관리형 VM 이라 **GPU 가 없고 KT Cloud 로 나가는 egress 도 막혀 있다**.
+`--teleport` 로 이 세션을 H100 컨테이너로 옮기면 두 제약이 한 번에 풀린다
+(대화 맥락·브랜치가 그대로 따라온다).
+
+```bash
+# AI Train(H100) 컨테이너의 터미널에서
+npm install -g @anthropic-ai/claude-code     # 또는 공식 설치 스크립트
+claude auth login                            # 이 세션과 같은 claude.ai 계정
+
+git clone <이 저장소> && cd DeepTechTIPS
+git checkout claude/busy-wright-11w7w4
+
+claude --teleport                            # 세션 선택 → 이 세션 고르기
+#   또는  claude --teleport <session-id>
+```
+
+teleport 요구사항(모두 충족 상태):
+- 같은 claude.ai 계정 · 같은 저장소 체크아웃
+- 작업 디렉터리 clean · **브랜치가 원격에 푸시돼 있을 것** → `claude/busy-wright-11w7w4` 푸시 완료 ✅
+
+옮겨온 뒤 첫 실행:
+```bash
+bash scripts/setup_h100.sh        # 패키지·데이터·학습스택·진단 한 번에
+bash scripts/run_m1_h100.sh       # M1 전체
+```
+
+> teleport 는 **web → terminal 단방향**이다. 옮긴 뒤의 작업은 로컬(H100)에만 남는다.
+> 휴대폰/웹에서 계속 지켜보려면 옮긴 세션에서 `/remote-control` 을 켠다.
+
+### 대안 — 이 세션에서 그대로 진행하고 싶다면
+
+**네트워크 정책만 열기**: claude.ai 의 cloud environment 설정에서 network access 를
+조정해 `ainexus.ktcloud.com` 등 KT Cloud 도메인을 허용하면, **서빙 엔드포인트 평가**는
+지금 세션에서도 가능하다(단, GPU 가 없으므로 학습은 여전히 불가).
+→ `docs/en/cloud-environments` 참고.
+
+| 방법 | 학습 | 서빙 평가 | 비고 |
+|---|---|---|---|
+| **teleport → H100** | ✅ | ✅ | 권장. 맥락 유지 |
+| 네트워크 정책만 허용 | ❌ | ✅ | GPU 없음 |
+| 현행 유지(코드만 준비) | ❌ | ❌ | 사람이 옮겨 실행 |
+
 ### 경로 A — AI Train 이 있는 경우 (권장)
 ```bash
-pip install -e ".[train]" && pip install unsloth vllm
+bash scripts/setup_h100.sh           # 패키지·데이터·학습스택·진단
 bash scripts/run_m1_h100.sh          # 진단→기준선→NLI 파인튜닝→EN/KR 재측정
 ```
 
@@ -38,6 +82,7 @@ python -m compliance_gateway.eval.external --split dev \
 python -m compliance_gateway.eval.korean --real \
     --nli-endpoint http://<서빙>/v1 --nli-model <모델ID>
 ```
+셋업은 `bash scripts/setup_h100.sh --eval-only` (학습 스택 생략).
 인증키는 `OPENAI_API_KEY` 또는 `KT_API_KEY` 환경변수로 전달한다.
 서빙 모델을 NLI 판정기로 쓰는 것은 로컬 파인튜닝 NLI 보다 비용·지연이 크지만,
 **학습 환경 없이도 KPI 를 측정할 수 있는 현실적 대안**이다.

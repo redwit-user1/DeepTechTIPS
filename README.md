@@ -109,9 +109,13 @@ python scripts/probe_env.py                              # GPU·FP8·스택·데
 python scripts/probe_env.py --endpoint http://<서빙>/v1  # 서빙 엔드포인트도 점검
 ```
 
+> 💡 **이 개발 세션 자체를 H100 으로 옮길 수 있다**(`claude --teleport`). 관리형 VM 은
+> GPU 가 없고 KT Cloud egress 도 막혀 있으므로, 옮기면 두 제약이 한 번에 풀린다.
+> 절차는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md#이-세션을-h100-으로-옮기기-teleport--가장-확실한-방법).
+
 **경로 A — AI Train(학습 컨테이너)이 있는 경우**
 ```bash
-pip install -e ".[train]" && pip install unsloth vllm
+bash scripts/setup_h100.sh                              # 패키지·데이터·학습스택·진단
 bash scripts/run_m1_h100.sh                             # 진단→기준선→NLI 파인튜닝→EN/KR 재측정
 torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
 python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
