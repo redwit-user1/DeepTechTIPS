@@ -72,3 +72,57 @@ def test_kpi_harness_on_seed():
     assert m["violation_precision"] >= 0.9
     assert 0.0 <= m["compliant_pass_rate"] <= 1.0
     assert "polarity_flip" in m["per_type_detection"]
+
+
+# ── H100 프로파일 / 서빙 백엔드 ────────────────────────────────────────
+
+def test_h100_is_default_profile_with_fp8():
+    from compliance_gateway.train.config import DEFAULT_GPU, GRPOConfig, GPU_PROFILES
+
+    assert DEFAULT_GPU == "h100"
+    assert GPU_PROFILES["h100"]["fp8_capable"] is True
+    assert GPU_PROFILES["a100"]["fp8_capable"] is False
+    assert GRPOConfig().fp8 is True          # H100 기본
+
+
+def test_validate_flags_fp8_on_a100():
+    """A100 에 FP8 을 켜면 경고해야 한다(하드웨어 미지원)."""
+    from compliance_gateway.train.config import GRPOConfig, validate
+
+    warns = validate(GRPOConfig(gpu="a100"))
+    assert warns and "FP8" in warns[0]
+    assert validate(GRPOConfig(gpu="h100")) == []
+
+
+def test_validate_flags_pointless_4bit_on_h100():
+    from compliance_gateway.train.config import SFTConfig, validate
+
+    assert validate(SFTConfig(load_in_4bit=True))
+    assert validate(SFTConfig()) == []
+
+
+def test_served_nli_parses_verdicts():
+    from compliance_gateway.serving import ServedNLI
+
+    assert ServedNLI.parse_verdict("SUPPORT") == 1.0
+    assert ServedNLI.parse_verdict("CONTRADICT") == 0.0
+    assert ServedNLI.parse_verdict("NEUTRAL") == 0.5
+    assert ServedNLI.parse_verdict("garbage") == 0.5    # 파싱 실패 → 중립
+
+
+def test_served_model_normalizes_base_url():
+    from compliance_gateway.serving import ServedModel
+
+    assert ServedModel("http://h:8000", "m").base_url == "http://h:8000/v1"
+    assert ServedModel("http://h:8000/v1/", "m").base_url == "http://h:8000/v1"
+
+
+def test_select_nli_requires_model_id_for_endpoint():
+    import pytest
+
+    from compliance_gateway.eval.nli_select import select_nli
+
+    with pytest.raises(SystemExit):
+        select_nli(endpoint="http://h:8000/v1")          # --nli-model 누락
+    fn, name = select_nli()                              # 기본 폴백
+    assert name == "statistical-v0.5"

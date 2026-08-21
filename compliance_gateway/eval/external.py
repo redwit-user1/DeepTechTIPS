@@ -91,9 +91,8 @@ def main() -> None:
     ap.add_argument("--out", default=None, help="JSONL 저장 경로(선택)")
     ap.add_argument("--sweep", action="store_true",
                     help="임계값 스윕 — '보정 문제'와 '모델 한계'를 분리")
-    ap.add_argument("--nli", default=None,
-                    help="트랜스포머 NLI 모델 경로/ID (예: checkpoints/nli). 미지정 시 통계 v0.5")
-    ap.add_argument("--device", default="cuda", help="NLI 추론 디바이스(cuda/cpu)")
+    from compliance_gateway.eval.nli_select import add_nli_args
+    add_nli_args(ap)
     ap.add_argument("--allow-leakage", action="store_true",
                     help="파인튜닝 split 으로 평가 허용(진단용, KPI 근거로 쓰지 말 것)")
     a = ap.parse_args()
@@ -108,24 +107,17 @@ def main() -> None:
     print(f"SciFact[{a.split}] 외부 평가셋: {len(items)}건 "
           f"(compliant={n_ok}, unsupported_claim={len(items) - n_ok})")
 
-    # NLI 백엔드 선택 — 파인튜닝 모델 주입 시 여기서 교체된다(재측정 경로)
-    if a.nli:
-        from compliance_gateway.nli.transformer import TransformerNLI
-
-        # 데이터 누출 가드: NLI 는 SciFact train 으로 파인튜닝된다.
-        # 같은 split 으로 KPI 를 측정하면 학습 데이터를 재평가하는 셈이라 부풀려진다.
-        if a.split == "train" and not a.allow_leakage:
-            raise SystemExit(
-                "[중단] 데이터 누출 위험: 파인튜닝 NLI(--nli)를 train split 으로 평가하려 합니다.\n"
-                "  NLI 는 SciFact train 으로 학습되므로 KPI 가 부풀려집니다.\n"
-                "  → `--split dev` 로 측정하세요(정직한 일반화 성능).\n"
-                "  (의도적 비교가 필요하면 --allow-leakage)"
-            )
-        nli_fn = TransformerNLI(model_name=a.nli, device=a.device)
-        backend_name = f"transformer({a.nli})"
-    else:
-        nli_fn = StatisticalNLI()
-        backend_name = "statistical-v0.5"
+    # 데이터 누출 가드: NLI 는 SciFact train 으로 파인튜닝된다.
+    # 같은 split 으로 KPI 를 측정하면 학습 데이터를 재평가하는 셈이라 부풀려진다.
+    if a.nli and a.split == "train" and not a.allow_leakage:
+        raise SystemExit(
+            "[중단] 데이터 누출 위험: 파인튜닝 NLI(--nli)를 train split 으로 평가하려 합니다.\n"
+            "  NLI 는 SciFact train 으로 학습되므로 KPI 가 부풀려집니다.\n"
+            "  → `--split dev` 로 측정하세요(정직한 일반화 성능).\n"
+            "  (의도적 비교가 필요하면 --allow-leakage)"
+        )
+    from compliance_gateway.eval.nli_select import select_nli
+    nli_fn, backend_name = select_nli(a.nli, a.nli_endpoint, a.nli_model, a.device)
     print(f"NLI 백엔드: {backend_name}\n")
 
     gw = ComplianceGateway(

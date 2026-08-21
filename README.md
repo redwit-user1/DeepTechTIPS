@@ -45,13 +45,14 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   verify/                 #   3단계 인용 검증 (3-class, CrossRef/OpenAlex/로컬)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
     korean/               #     국내 R&D 한국어 데이터셋 (실기관 과제 + ALCOA+ 변조)
-  train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — A100용
-  eval/                   #   SciFact 벤치마크 + KPI 측정 하니스(kpi.py)
+  train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — H100용
+  serving/                #   OpenAI 호환 서빙 연동 (AI Serv 등, 학습 없이 평가)
+  eval/                   #   SciFact 벤치마크 + KPI 하니스 + 외부/국내 실데이터 평가
   models.py              #   데이터 모델 (의존성 없음)
   pipeline.py            #   7단계 게이트웨이 파이프라인 오케스트레이션
   demo.py                #   VCR/Gateway 데모
 docs/                    # 설계·로드맵·스펙·평가 문서
-scripts/                 # 데이터 다운로드·시드 생성
+scripts/                 # 환경진단(probe_env)·데이터 다운로드·H100 런북
 tests/                   # 단위 테스트
 ```
 
@@ -95,21 +96,33 @@ python -m compliance_gateway.data.korean.build_kr
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).
 
-## A100 학습 계획
+## H100 학습 계획 (KT Cloud AI Nexus)
 
-A100 2장 × 6개월 확보. 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
-6개월 로드맵·KPI 매핑·실행 커맨드는 [`docs/A100_PLAN.md`](docs/A100_PLAN.md).
+**H100 80GB × 2** 확보. 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
+로드맵·KPI 매핑·실행 커맨드는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md).
+
+**먼저 환경을 확인한다** — AI Nexus 는 AI Train(학습)과 AI Serv(추론 슬라이싱)를
+합친 플랫폼이라 프로비저닝에 따라 가능한 작업이 다르다.
 
 ```bash
-# KPI 측정(현재 baseline — A100 없이 동작). --compare 로 서지검증 백엔드 비교
-python -m compliance_gateway.eval.kpi --compare
+python scripts/probe_env.py                              # GPU·FP8·스택·데이터 자동 판정
+python scripts/probe_env.py --endpoint http://<서빙>/v1  # 서빙 엔드포인트도 점검
+```
 
-# A100 환경(HF 접근 가능)
+**경로 A — AI Train(학습 컨테이너)이 있는 경우**
+```bash
 pip install -e ".[train]" && pip install unsloth vllm
-bash scripts/run_m1_a100.sh                             # M1 전체: 기준선→NLI 파인튜닝→재측정
+bash scripts/run_m1_h100.sh                             # 진단→기준선→NLI 파인튜닝→EN/KR 재측정
 torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
 python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
-python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수)
+python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수, FP8)
+```
+
+**경로 B — AI Serv(추론 서빙)만 있는 경우** — 학습은 못 하지만 Gateway 가
+Model-Agnostic 이라 서빙 모델을 붙여 KPI 측정이 가능하다.
+```bash
+python -m compliance_gateway.eval.external --split dev \
+    --nli-endpoint http://<서빙>/v1 --nli-model <모델ID> --sweep
 ```
 
 최신 업스트림(Unsloth/TRL-vLLM/인용검증) 조사·적용 기록과 측정치: [`docs/UPSTREAM_TECH.md`](docs/UPSTREAM_TECH.md).

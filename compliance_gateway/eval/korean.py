@@ -69,8 +69,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--threshold", type=float, default=DEFAULT_KR_THRESHOLD)
     ap.add_argument("--sweep", action="store_true")
-    ap.add_argument("--nli", default=None, help="트랜스포머 NLI 경로(선택)")
-    ap.add_argument("--device", default="cuda")
+    from compliance_gateway.eval.nli_select import add_nli_args
+    add_nli_args(ap)
     ap.add_argument("--real", action="store_true",
                     help="실데이터 평가셋 사용(변조 없음 — 성능 주장의 진짜 근거)")
     a = ap.parse_args()
@@ -81,13 +81,9 @@ def main() -> None:
     n_ok = sum(1 for i in items if i["label"] == "compliant")
     print(f"국내 R&D 한국어 평가셋: {len(items)}건 (compliant {n_ok} / 위반 {len(items)-n_ok})")
 
-    if a.nli:
-        from compliance_gateway.nli.transformer import TransformerNLI
-        nli_fn = TransformerNLI(model_name=a.nli, device=a.device)
-        print(f"NLI 백엔드: transformer({a.nli})")
-    else:
-        nli_fn = StatisticalNLI()
-        print("NLI 백엔드: statistical-v0.5")
+    from compliance_gateway.eval.nli_select import select_nli
+    nli_fn, backend_name = select_nli(a.nli, a.nli_endpoint, a.nli_model, a.device)
+    print(f"NLI 백엔드: {backend_name}")
 
     gw = ComplianceGateway(vcr_threshold=a.threshold, nli_fn=nli_fn,
                            verifier=CitationVerifier([registry]))
