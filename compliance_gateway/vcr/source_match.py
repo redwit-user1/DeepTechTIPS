@@ -33,13 +33,21 @@ def _overlap(claim: str, evidence: str) -> float:
 
 
 def _claim_for_citation(text: str, citation_raw: str) -> str:
-    """인용이 들어있는 문장을 추출한다(없으면 전체 응답).
+    """인용이 귀속하는 **본문 주장**을 추출한다.
 
-    이래야 NLI 가 '인용 문자열' 이 아니라 '근거가 뒷받침해야 할 주장' 을 평가한다.
+    인용이 문장 끝/독립 조각으로 떨어지면 그 조각만으로는 내용이 없다
+    (예: "(출처: 기관, 2020, 과제번호 NCT...)"). 이 경우 인용 이전의 본문을
+    주장으로 사용해야 NLI 가 근거-주장 일치도를 제대로 평가한다.
     """
-    for part in re.split(r"(?<=[.!?])\s+|(?<=[다요])\s+|\n+", text.strip()):
+    parts = re.split(r"(?<=[.!?])\s+|(?<=[다요])\s+|\n+", text.strip())
+    for idx, part in enumerate(parts):
         if citation_raw in part:
-            return part.strip()
+            stripped = part.replace(citation_raw, "").strip(" .,;()（）")
+            if len(stripped) >= 10:
+                return stripped                      # 문장 안에 본문이 함께 있음
+            # 인용만 있는 조각 → 직전 본문(없으면 전체)을 주장으로
+            prev = " ".join(parts[:idx]).strip()
+            return prev if len(prev) >= 10 else text
     return text
 
 

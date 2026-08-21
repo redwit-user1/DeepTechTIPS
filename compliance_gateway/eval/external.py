@@ -85,7 +85,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", default="train", choices=["train", "dev", "test"])
     ap.add_argument("--limit", type=int, default=None)
-    ap.add_argument("--threshold", type=float, default=0.55)
+    # 운영점은 스코어 의미가 바뀔 때마다 재보정해야 한다(θ 스윕 참조).
+    # 현재 영어 외부셋 최적(정상통과>=80%)은 0.70.
+    ap.add_argument("--threshold", type=float, default=0.70)
     ap.add_argument("--out", default=None, help="JSONL 저장 경로(선택)")
     ap.add_argument("--sweep", action="store_true",
                     help="임계값 스윕 — '보정 문제'와 '모델 한계'를 분리")

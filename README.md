@@ -44,6 +44,7 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   nli/                    #   NLI 백엔드 (lexical / statistical v0.5 / transformer)
   verify/                 #   3단계 인용 검증 (3-class, CrossRef/OpenAlex/로컬)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
+    korean/               #     국내 R&D 한국어 데이터셋 (실기관 과제 + ALCOA+ 변조)
   train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — A100용
   eval/                   #   SciFact 벤치마크 + KPI 측정 하니스(kpi.py)
   models.py              #   데이터 모델 (의존성 없음)
@@ -67,12 +68,18 @@ bash scripts/download_scifact.sh                       # CC BY-NC, S3(HF 차단 
 python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.md
 
 # (C) 외부 실데이터 KPI — 합성 낙관편향 제거. 성능 주장의 진짜 근거
-python -m compliance_gateway.eval.external --split train --sweep   # docs/EVAL_EXTERNAL.md
+python -m compliance_gateway.eval.external --split dev --sweep     # docs/EVAL_EXTERNAL.md
+
+# (D) 국내 R&D 한국어 데이터셋 (ALCOA+ 속성별 위반)
+python -m compliance_gateway.data.korean.build_kr                  # docs/DATASET_KR.md
+python -m compliance_gateway.eval.korean --sweep
 ```
 
-> ⚠️ **성능 보고 원칙**: 합성 평가셋(F1 98.2%)은 회귀 테스트용이며 KPI 근거로 쓰지 않는다.
-> 외부 실데이터 기준 현재 F1 **39.3%** — 목표 90%까지는 트랜스포머 NLI 도입이 필수 조건임을
-> 임계값 스윕으로 확인했다(어떤 θ 에서도 Precision 41% 상한). [`docs/EVAL_EXTERNAL.md`](docs/EVAL_EXTERNAL.md)
+> ⚠️ **성능 보고 원칙**: 합성 평가셋(EN F1 98.2% / KR F1 100%)은 회귀 테스트용이며
+> KPI 근거로 쓰지 않는다. **외부 실데이터 기준 현재 F1 24.0%**(dev) — 목표 90%까지는
+> 트랜스포머 NLI 도입이 필수 조건임을 임계값 스윕으로 확인했다.
+> 한국어 외부 평가셋은 **미확보**(ScienceON/KCI egress 차단) — 한국어 KPI 는 아직 주장 불가.
+> [`docs/EVAL_EXTERNAL.md`](docs/EVAL_EXTERNAL.md) · [`docs/DATASET_KR.md`](docs/DATASET_KR.md)
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).

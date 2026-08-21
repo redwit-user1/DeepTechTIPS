@@ -20,7 +20,7 @@ from compliance_gateway.vcr.source_match import _tokens
 DOIResolver = Callable[[str], bool]
 
 _NUM_UNIT = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(°c|℃|micro-?m|µm|nm|mm|mg|kg|mol|ph|%|fold|times|배)",
+    r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(°c|℃|micro-?m|µm|nm|mm|mg|kg|mol|ph|%|fold|times|명|건|개|회|년|세|시간|일|주|개월|점|배)",
     re.IGNORECASE,
 )
 
