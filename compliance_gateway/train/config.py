@@ -38,7 +38,11 @@ NLI_MODELS = {
 class LoRAConfig:
     r: int = 16
     alpha: int = 32
-    dropout: float = 0.05
+    # dropout=0 / bias="none" 은 **Unsloth 고속 경로 조건**이다.
+    # 0 이 아니면 Unsloth 가 LoRA 행렬을 제외한 나머지 레이어만 패치해 성능 손해가 난다.
+    # 고품질 데이터셋의 LoRA 파인튜닝에서는 dropout 이 대체로 불필요하다.
+    dropout: float = 0.0
+    bias: str = "none"
     # 7B 계열 어텐션+MLP 투영 (모델별 명칭은 sft/dpo에서 자동 해석)
     target_modules: tuple[str, ...] = (
         "q_proj", "k_proj", "v_proj", "o_proj",
@@ -155,6 +159,15 @@ def validate(cfg) -> list[str]:
         warnings.append(
             f"fp8=True 이지만 {cfg.gpu} 는 FP8 미지원 하드웨어입니다 → fp8=False 로 두세요."
         )
+    lora = getattr(cfg, "lora", None)
+    if lora is not None and getattr(cfg, "use_unsloth", False):
+        if lora.dropout != 0.0:
+            warnings.append(
+                f"lora.dropout={lora.dropout} → Unsloth 고속 경로에서 벗어납니다"
+                " (LoRA 외 레이어만 패치 = 성능 손해). 0.0 권장."
+            )
+        if lora.bias != "none":
+            warnings.append(f'lora.bias="{lora.bias}" → Unsloth 최적화는 "none" 기준입니다.')
     if getattr(cfg, "load_in_4bit", False) and profile["fp8_capable"]:
         warnings.append(
             "H100 80GB 에서 7B 학습에 4-bit 는 불필요합니다(정확도만 손해). "

@@ -120,8 +120,14 @@ bash scripts/setup_h100.sh                              # 패키지·데이터·
 bash scripts/run_m1_h100.sh                             # 진단→기준선→NLI 파인튜닝→EN/KR 재측정
 torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
 python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
+python -m compliance_gateway.train.reward_check --dataset mixed   # ⚠️ GRPO 전 필수 관문
 python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수, FP8)
 ```
+
+> **GRPO 전에 `reward_check` 를 반드시 통과시킬 것.** RL 은 보상이 틀려도 조용히
+> 잘못된 목표를 최적화한다. 이 게이트는 분리도·축퇴·보상해킹·구성요소 생존을 점검하며,
+> 실제로 `source_exist` 상수 버그와 도메인 간 보상 비교불가 문제를 잡아냈다.
+> → [`docs/UPSTREAM_TECH.md`](docs/UPSTREAM_TECH.md)
 
 **경로 B — AI Serv(추론 서빙)만 있는 경우** — 학습은 못 하지만 Gateway 가
 Model-Agnostic 이라 서빙 모델을 붙여 KPI 측정이 가능하다.

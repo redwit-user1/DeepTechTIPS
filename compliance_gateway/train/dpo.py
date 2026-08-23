@@ -41,6 +41,7 @@ def run(cfg: DPOConfig) -> None:
     peft_config = None if unsloth_used else LoraConfig(
         r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
         target_modules=list(cfg.lora.target_modules), task_type="CAUSAL_LM",
+        bias=getattr(cfg.lora, "bias", "none"),
     )
     args = TRLDPOConfig(
         output_dir=cfg.output_dir, num_train_epochs=cfg.epochs, beta=cfg.beta,

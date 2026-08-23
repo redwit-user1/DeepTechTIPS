@@ -44,7 +44,7 @@ _QUOTED_TITLE = re.compile(r'"([^"]{20,300})"')
 _MERGE_WINDOW = 60
 
 
-def extract_citations(text: str, merge: bool = True) -> list[Citation]:
+def extract_citations_with_spans(text: str, merge: bool = True) -> list[tuple[int, int, Citation]]:
     """텍스트에서 인용 후보를 추출한다.
 
     merge=True 면 서로 인접한 (저자-연도) + (DOI/URL) 조각을 **하나의 참고문헌**으로
@@ -91,9 +91,9 @@ def extract_citations(text: str, merge: bool = True) -> list[Citation]:
 
     found.sort(key=lambda x: x[0])
     if not merge:
-        return [c for _, _, c in found]
+        return found
 
-    merged: list[Citation] = []
+    merged: list[tuple[int, int, Citation]] = []
     cur_start = cur_end = None
     cur: Citation | None = None
     for start, end, cit in found:
@@ -106,13 +106,39 @@ def extract_citations(text: str, merge: bool = True) -> list[Citation]:
             cur.year = cur.year or cit.year
             cur_end = max(cur_end, end)
             cur.raw = text[cur_start:cur_end]
+            merged[-1] = (cur_start, cur_end, cur)
             continue
         cur = Citation(raw=cit.raw, doi=cit.doi, url=cit.url, title=cit.title,
                        authors=cit.authors, year=cit.year)
         cur_start, cur_end = start, end
-        merged.append(cur)
+        merged.append((cur_start, cur_end, cur))
 
     return merged
+
+
+def extract_citations(text: str, merge: bool = True) -> list[Citation]:
+    """텍스트에서 인용 후보를 추출한다(위치 정보 없이)."""
+    return [c for _, _, c in extract_citations_with_spans(text, merge=merge)]
+
+
+_SPLIT_PATTERN = r"(?<=[.!?])\s+|(?<=[다요])\s+|\n+"
+
+
+def _split_claims_with_spans(text: str) -> list[tuple[int, int]]:
+    """주장 문장의 (start, end) 위치 목록."""
+    stripped = text.strip()
+    offset = text.find(stripped) if stripped else 0
+    spans: list[tuple[int, int]] = []
+    cursor = 0
+    for part in re.split(_SPLIT_PATTERN, stripped):
+        if not part.strip():
+            continue
+        idx = stripped.find(part, cursor)
+        if idx < 0:
+            continue
+        spans.append((offset + idx, offset + idx + len(part)))
+        cursor = idx + len(part)
+    return spans
 
 
 def _split_claims(text: str) -> list[str]:
@@ -121,17 +147,20 @@ def _split_claims(text: str) -> list[str]:
     return [p for p in (s.strip() for s in parts) if p]
 
 
-def _citation_spans(claims: list[str], citations: list[Citation]) -> list[bool]:
-    """문장별 '출처가 붙어 있는가' 판정.
+def _citation_spans(text: str, cite_spans: list[tuple[int, int]]) -> list[bool]:
+    """문장별 '출처가 붙어 있는가' 판정 — **위치 겹침** 기준.
+
+    부분문자열 매칭은 인용 안의 마침표("Alam et al.")에서 문장이 쪼개지면 실패한다.
+    문장 span 과 인용 span 의 겹침으로 판정해야 언어·표기와 무관하게 정확하다.
 
     문단 끝의 인용은 **앞선 문장들을 함께 귀속**한다("A. B. C (출처)." → 3문장 모두 커버).
-    직전 인용 이후의 미커버 문장들을 현재 인용이 흡수하는 방식.
     """
-    covered = [False] * len(claims)
+    claim_spans = _split_claims_with_spans(text)
+    covered = [False] * len(claim_spans)
     buffer: list[int] = []
-    for i, claim in enumerate(claims):
+    for i, (cs, ce) in enumerate(claim_spans):
         buffer.append(i)
-        if any(c.raw and c.raw in claim for c in citations):
+        if any(cs < ce_ and ce > cs_ for cs_, ce_ in cite_spans):   # 겹침
             for j in buffer:
                 covered[j] = True
             buffer = []
@@ -139,14 +168,13 @@ def _citation_spans(claims: list[str], citations: list[Citation]) -> list[bool]:
 
 
 def source_exist(text: str, citations: list[Citation] | None = None) -> float:
-    """출처가 달린 주장 비율 [0, 1].
-
-    인용이 하나도 없으면 0.0.
-    """
-    if citations is None:
-        citations = extract_citations(text)
-    claims = _split_claims(text)
-    if not claims or not citations:
+    """출처가 달린 주장 비율 [0, 1]. 인용이 하나도 없으면 0.0."""
+    spans = extract_citations_with_spans(text)
+    if citations is not None and not citations:
         return 0.0
-    covered = _citation_spans(claims, citations)
+    if not spans:
+        return 0.0
+    covered = _citation_spans(text, [(a, b) for a, b, _ in spans])
+    if not covered:
+        return 0.0
     return sum(covered) / len(covered)

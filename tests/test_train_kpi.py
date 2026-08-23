@@ -126,3 +126,67 @@ def test_select_nli_requires_model_id_for_endpoint():
         select_nli(endpoint="http://h:8000/v1")          # --nli-model 누락
     fn, name = select_nli()                              # 기본 폴백
     assert name == "statistical-v0.5"
+
+
+# ── 보상함수 사전 점검 게이트 ──────────────────────────────────────────
+
+def test_citation_spanning_sentence_boundary_is_counted():
+    """인용 안의 마침표('Alam et al.')로 문장이 쪼개져도 출처로 인정돼야 한다.
+
+    부분문자열 매칭 시절의 회귀: 병합 인용이 두 조각에 걸쳐 source_exist=0 이 됐다.
+    """
+    from compliance_gateway.vcr.source_exist import extract_citations, source_exist
+
+    text = ("The most potent compound C3 showed an IC50 of 8.47 micro-M. "
+            "(Alam et al. (2024); DOI: 10.1101/2024.01.08.574589)")
+    assert source_exist(text, extract_citations(text)) == 1.0
+
+
+def test_source_exist_across_citation_styles():
+    from compliance_gateway.vcr.source_exist import extract_citations, source_exist
+
+    cases = [
+        'Claim here. (cf. "A Study of Something Important in Biology")',
+        "서울대학교병원은 연구를 수행하였다. (출처: 서울대학교병원, 2020, 과제번호 NCT04490642)",
+        "Finding X. (Kim et al. (2024); DOI: 10.1101/2024.01.01.000001)",
+    ]
+    for t in cases:
+        assert source_exist(t, extract_citations(t)) == 1.0, t
+    assert source_exist("출처 없는 주장이다.", []) == 0.0
+
+
+def test_reward_check_detects_degenerate_component():
+    """실데이터 KR 은 인용이 항상 실존 → source_exist/halluc 이 상수.
+
+    단일 데이터셋으로 GRPO 를 돌리면 보상 가중치가 낭비된다는 사실을 고정한다.
+    """
+    import statistics
+
+    from compliance_gateway.nli.statistical import StatisticalNLI
+    from compliance_gateway.train.reward_check import _load
+    from compliance_gateway.vcr.reward import compute_vcr
+    from compliance_gateway.verify import CitationVerifier
+
+    items, registry = _load("kr_real")
+    nli, verifier = StatisticalNLI(), CitationVerifier([registry])
+    breakdowns = [
+        compute_vcr(i["query"], i["response"], grounding=(i["grounding"],),
+                    nli_fn=nli, verifier=verifier)
+        for i in items[:40]
+    ]
+    exists = [b.source_exist for b in breakdowns]
+    assert statistics.pstdev(exists) < 1e-6      # 상수 = 학습 신호 없음
+
+
+def test_reward_check_hack_probes_score_low():
+    """빈 응답·인용 나열·근거 복붙이 높은 보상을 받으면 안 된다."""
+    from compliance_gateway.nli.statistical import StatisticalNLI
+    from compliance_gateway.train.reward_check import MAX_HACK_SCORE, _hack_probes, _load
+    from compliance_gateway.vcr.reward import compute_vcr
+    from compliance_gateway.verify import CitationVerifier
+
+    items, registry = _load("kr_real")
+    nli, verifier = StatisticalNLI(), CitationVerifier([registry])
+    for name, resp, g in _hack_probes(items):
+        v = compute_vcr("q", resp, grounding=(g,), nli_fn=nli, verifier=verifier).vcr
+        assert v <= MAX_HACK_SCORE, f"보상 해킹 가능: {name} → {v}"

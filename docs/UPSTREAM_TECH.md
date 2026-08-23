@@ -122,3 +122,88 @@ from compliance_gateway.verify.backends import CrossRefBackend, OpenAlexBackend
 v = CitationVerifier([LocalRegistry.from_seed(), CrossRefBackend(), OpenAlexBackend()])
 PY
 ```
+
+
+---
+
+## 5. GitHub 스킬/리포 조사 (Unsloth·서빙) — 2차 조사
+
+### 발견한 것
+
+| 리소스 | 내용 | 우리에게 |
+|---|---|---|
+| [`unslothai/unsloth`](https://github.com/unslothai/unsloth) (74k★) | **실행+학습 통합 로컬 UI** 로 확장 | 서빙까지 커버 |
+| [`TYH-labs/unsloth-buddy`](https://github.com/TYH-labs/unsloth-buddy) | 7단계 파인튜닝 라이프사이클 스킬(환경감지→학습→평가→GGUF 내보내기→서빙) | **gotcha 목록이 유용** |
+| [`wshobson/agents`](https://github.com/wshobson/agents) `plugins/llm-finetuning/` | `grpo-rlvr-training`, `preference-optimization`, `vision-sft` 스킬 | **GRPO 레시피·점검 원칙 채택** |
+| `unsloth-grpo` (cuba6112/skillfactory) | 다목적 보상함수·RLVR 패턴 | 보상 설계 참고 |
+| Unsloth 공식 배포 문서 | `save_pretrained_merged` / `save_pretrained_gguf` / vLLM·Ollama·SGLang 서빙 | M5 배포 경로 |
+
+> 여러 스킬 카탈로그(`K-Dense-AI/scientific-agent-skills` 34k★, `VoltAgent/awesome-agent-skills` 31k★)를
+> 뒤졌으나 **Unsloth 전용 스킬은 위 두 곳뿐**이었다.
+
+### 적용 1 — LoRA 설정이 Unsloth 고속 경로를 벗어나 있었다 (실제 성능 버그)
+
+`lora_dropout=0` / `bias="none"` 이 Unsloth 최적화 조건이다.
+0 이 아니면 **Unsloth 가 LoRA 행렬을 제외한 나머지 레이어만 패치**해 성능 손해가 난다.
+우리 기본값은 `dropout=0.05` 였고 `bias` 는 아예 지정되지 않았다.
+
+→ `LoRAConfig.dropout=0.0`, `bias="none"` 로 수정. `validate()` 가 위반 시 경고.
+
+### 적용 2 — 보상함수 사전 점검 게이트 (`train/reward_check.py`)
+
+GRPO 스킬의 핵심 원칙을 구현했다:
+> "학습 전에 50~100개 샘플에 보상함수를 돌려 조용한 오정렬을 잡아라."
+
+RL 은 보상이 틀려도 **조용히** 잘못된 목표를 최적화한다. GPU 시간을 쓰기 전에 4가지를 본다:
+분리도(AUC) · 축퇴(분산) · 보상 해킹 취약성 · 구성요소 생존.
+
+```bash
+python -m compliance_gateway.train.reward_check --dataset kr_real
+python -m compliance_gateway.train.reward_check --dataset mixed --samples 200
+```
+
+#### 게이트가 즉시 잡아낸 것 3가지
+
+**(a) `source_exist` 회귀 — 영어 인용이 전부 0점이었다**
+한국어 인용 병합을 넣으면서 부분문자열 매칭을 썼는데, 병합 인용 안의 마침표
+(`"Alam et al."`)에서 문장이 쪼개져 매칭이 실패했다. 영어 합성셋 `source_exist` 가
+**상수 0.0** 이었다(= 보상의 25%가 죽어 있었다).
+→ **위치(span) 겹침 기준**으로 교체. 수정 후 mean 0.0 → **0.838**.
+
+**(b) 단일 데이터셋으로는 VCR 4요소를 다 자극하지 못한다**
+
+| 데이터셋 | AUC | source_exist | halluc | 판정 |
+|---|---|---|---|---|
+| kr_real | 0.715 | **상수 1.0** | **상수 0.0** | ❌ 보상 45% 낭비 |
+| synth (bioRxiv) | 0.960 | σ=0.368 | σ=0.399 | ✅ |
+| kr_synth | 1.000 | σ=0.376 | σ=0.342 | ✅ |
+| **mixed** | 0.617 | σ=0.271 | σ=0.350 | ❌ (아래 참조) |
+
+국내 실데이터는 **모든 항목이 실존 인용을 갖도록 설계**돼 있어(교차 귀속 오류만 다룸)
+`source_exist`·`halluc` 가 상수가 된다. 데이터셋 결함이 아니라 설계상 속성이지만,
+**이것만으로 GRPO 를 돌리면 보상 가중치의 45%가 학습 신호 없이 낭비된다.**
+
+**(c) VCR 점수는 데이터셋·언어 간 비교가 불가능하다**
+혼합하면 4요소는 모두 살아나지만 AUC 가 0.617 로 떨어진다.
+`kr_real` **위반**(0.617)이 `synth` **준수**(0.584)보다 높기 때문이다.
+→ 단일 전역 보상 스케일로는 다도메인 RL 이 성립하지 않는다.
+임계값 이슈(영어 θ=0.70 vs 한국어 θ=0.94)와 **같은 현상이 보상 수준에서 재확인**된 것이다.
+사업계획서의 **VCR v2 도메인별 가중치 자동 최적화**가 필요한 실증 근거.
+
+### GRPO 하이퍼파라미터 — 출처별 권장치가 갈린다
+
+| 출처 | lr | beta |
+|---|---|---|
+| 2026 커뮤니티 일반 권장 | — | 0.04 |
+| `wshobson/agents` GRPO 레시피 | 5e-7 | 0.01 |
+| **현재 우리 설정** | 1e-6 | 0.04 |
+
+`num_generations ≥ 8`("floor, not a suggestion")과 vLLM 모드 선택은 양쪽이 일치한다.
+lr/beta 는 실측으로 정할 문제라 **바꾸지 않고 기록만 남긴다**.
+
+### 아직 적용하지 않은 것 (M5 대상)
+
+- GGUF 내보내기(`save_pretrained_gguf`) → Ollama/llama.cpp/vLLM 서빙
+- **gotcha**: 4-bit 로 로드한 모델은 GGUF 내보내기 실패 → FP16 으로 로드해야 함
+- **gotcha**: 서빙 시 **학습 때와 같은 chat template** 을 써야 함(오류 1순위 원인)
+- **gotcha**: GRPO 는 보상이 오르기까지 **≥300 스텝** 필요(정상 동작이니 조기 중단 금지)

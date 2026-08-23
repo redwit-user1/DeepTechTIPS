@@ -60,7 +60,8 @@ def apply_lora(model: Any, lora_cfg, unsloth_used: bool, max_seq_len: int = 2048
         model,
         r=lora_cfg.r,
         lora_alpha=lora_cfg.alpha,
-        lora_dropout=lora_cfg.dropout,
+        lora_dropout=lora_cfg.dropout,     # 0 이어야 Unsloth 고속 경로
+        bias=getattr(lora_cfg, "bias", "none"),
         target_modules=list(lora_cfg.target_modules),
         use_gradient_checkpointing="unsloth",   # 장문맥 메모리 절감
         max_seq_length=max_seq_len,
