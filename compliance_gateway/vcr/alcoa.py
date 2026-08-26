@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-_NUM_UNIT = re.compile(r"(\d+(?:,\d{3})*(?:\.\d+)?)\s*(°c|℃|k|mol|mm|nm|μm|ph|%|명|건|개|회|년|세|시간|일|주|개월|점|배)", re.IGNORECASE)
+_NUM_UNIT = re.compile(r"(\d+(?:,\d{3})*(?:\.\d+)?)[ \t]*(°c|℃|k|mol|mm|nm|μm|ph|%|명|건|개|회|년|세|시간|일|주|개월|점|배)", re.IGNORECASE)
 _INCOMPLETE = re.compile(r"(\.\.\.|…|등등|기타\s*등|TBD|to be|작성\s*예정)", re.IGNORECASE)
 
 

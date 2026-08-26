@@ -45,6 +45,8 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   verify/                 #   3단계 인용 검증 (3-class, CrossRef/OpenAlex/로컬)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
     korean/               #     국내 R&D 한국어 데이터셋 (실기관 과제 + ALCOA+ 변조)
+    labnote/              #     연구노트 가상 데이터 (한국어 자연 문체, SYNTHETIC 표식)
+  integrity/              #   기록 무결성 검사 — 1차 기록(연구노트)용, VCR과 역할 분담
   train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — H100용
   serving/                #   OpenAI 호환 서빙 연동 (AI Serv 등, 학습 없이 평가)
   eval/                   #   SciFact 벤치마크 + KPI 하니스 + 외부/국내 실데이터 평가
@@ -77,7 +79,15 @@ python -m compliance_gateway.eval.korean --real --threshold 0.64
 
 # (D-2) 국내 R&D 합성셋 (회귀 테스트 전용)
 python -m compliance_gateway.data.korean.build_kr
+
+# (E) 연구노트 가상 데이터 + 기록 무결성 검사 (한국어 자연 문체)
+python -m compliance_gateway.data.labnote.generate --notes 40   # docs/DATASET_LABNOTE.md
+python -m compliance_gateway.eval.labnote --compare-vcr
 ```
+
+> 🔍 **VCR 로는 연구노트를 평가할 수 없다.** 연구노트는 1차 기록이라 인용이 없어
+> `SourceExist`/`SourceMatch` 가 구조적으로 0에 가깝고, 정상 노트조차 전부 차단된다.
+> → 기록 무결성 검사(`integrity/`)로 분리했다: AUC **1.000** vs VCR 0.607.
 
 > ⚠️ **성능 보고 원칙**: 합성 평가셋(EN F1 98.2% / KR F1 100%)은 회귀 테스트 전용이며
 > KPI 근거로 쓰지 않는다. **실데이터 기준 현재 상태**:
