@@ -14,8 +14,14 @@ venv/
 *.safetensors
 *.gguf
 *.bin
-data/raw/
-data/synth/
+# 선행 슬래시 필수 — `data/` 로 쓰면 compliance_gateway/data/ 소스 패키지까지 차단된다
+/data/
 models/
 checkpoints/
 # 단, compliance_gateway/data/seed/ 는 커밋(파이프라인 재현용 실데이터 시드)
+
+# ── 고객 실데이터 — 절대 커밋 금지 ──────────────────────────────────
+# GOONO OCR 내보내기 등 원본. 미공개 연구내용·개인정보를 포함한다.
+*.csv
+ocr_*.json
+!compliance_gateway/**/seed/*.json

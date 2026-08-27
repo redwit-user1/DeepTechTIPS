@@ -40,6 +40,7 @@ class DeidentifyResult:
     text: str
     counts: dict[str, int] = field(default_factory=dict)
     mapping_size: int = 0
+    passes: int = 1                 # 잔존 제거까지 실제로 돌린 패스 수
 
     @property
     def total(self) -> int:
@@ -52,28 +53,46 @@ def _pseudonym(value: str, prefix: str, salt: str) -> str:
     return f"{prefix}_{h[:4].upper()}"
 
 
+# 1회 패스로 부족한 경우가 실제로 있다(인접·중첩 매치).
+# 실데이터에서 치환 후에도 11자리 전화번호가 남는 사례가 확인됐고,
+# 2차 패스에서 잡혔다. 개인정보가 남으면 안 되므로 **잔존이 0이 될 때까지 반복**한다.
+MAX_PASSES = 5
+
+
 def deidentify(text: str, salt: str = "goono-deid-v1") -> DeidentifyResult:
     """개인정보를 비가역 가명으로 치환한다.
 
     salt 는 배포마다 바꾸고 **외부에 공개하지 않는다**
     (공개되면 후보군 대조로 재식별 시도가 가능해진다).
+
+    잔존이 없을 때까지(최대 `MAX_PASSES`) 반복 적용한다.
     """
     counts: dict[str, int] = {}
     mapping: dict[str, str] = {}
 
-    for name, pat, prefix in RULES:
-        def repl(m: re.Match) -> str:
-            raw = m.group(1) if m.groups() else m.group(0)
-            key = f"{prefix}:{raw.strip()}"
-            if key not in mapping:
-                mapping[key] = _pseudonym(raw, prefix, salt)
-            counts[name] = counts.get(name, 0) + 1
-            whole = m.group(0)
-            return whole.replace(raw, mapping[key]) if m.groups() else mapping[key]
+    def one_pass(t: str) -> str:
+        for name, pat, prefix in RULES:
+            def repl(m: re.Match, _name=name, _prefix=prefix) -> str:
+                raw = m.group(1) if m.groups() else m.group(0)
+                key = f"{_prefix}:{raw.strip()}"
+                if key not in mapping:
+                    mapping[key] = _pseudonym(raw, _prefix, salt)
+                counts[_name] = counts.get(_name, 0) + 1
+                whole = m.group(0)
+                return whole.replace(raw, mapping[key]) if m.groups() else mapping[key]
 
-        text = pat.sub(repl, text)
+            t = pat.sub(repl, t)
+        return t
 
-    return DeidentifyResult(text=text, counts=counts, mapping_size=len(mapping))
+    passes = 0
+    for _ in range(MAX_PASSES):
+        text = one_pass(text)
+        passes += 1
+        if not audit(text):
+            break
+
+    return DeidentifyResult(text=text, counts=counts, mapping_size=len(mapping),
+                            passes=passes)
 
 
 # 이미 치환된 가명(연구자_9565 등)은 위험이 아니다.
