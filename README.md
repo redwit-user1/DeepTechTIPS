@@ -46,6 +46,7 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   data/                   #   합성 데이터 파이프라인 (bioRxiv → DPO) + 시드
     korean/               #     국내 R&D 한국어 데이터셋 (실기관 과제 + ALCOA+ 변조)
     labnote/              #     연구노트 가상 데이터 (한국어 자연 문체, SYNTHETIC 표식)
+    ocr/                  #     OCR 실데이터 수확 (비식별화·노이즈 내성 파서)
   integrity/              #   기록 무결성 검사 — 1차 기록(연구노트)용, VCR과 역할 분담
   train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — H100용
   serving/                #   OpenAI 호환 서빙 연동 (AI Serv 등, 학습 없이 평가)
@@ -83,6 +84,10 @@ python -m compliance_gateway.data.korean.build_kr
 # (E) 연구노트 가상 데이터 + 기록 무결성 검사 (한국어 자연 문체)
 python -m compliance_gateway.data.labnote.generate --notes 40   # docs/DATASET_LABNOTE.md
 python -m compliance_gateway.eval.labnote --compare-vcr
+
+# (F) 보유 중인 OCR 연구노트 실데이터 수확 (로컬/H100에서 실행)
+python scripts/profile_ocr_dataset.py /path/to/ocr              # docs/OCR_HARVEST.md
+python -m compliance_gateway.data.ocr.harvest /path/to/ocr --limit 500
 ```
 
 > 🔍 **VCR 로는 연구노트를 평가할 수 없다.** 연구노트는 1차 기록이라 인용이 없어
