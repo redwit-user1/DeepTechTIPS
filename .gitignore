@@ -25,3 +25,6 @@ checkpoints/
 *.csv
 ocr_*.json
 !compliance_gateway/**/seed/*.json
+
+# 분석 스크립트 stdout 덤프 — 집계값뿐이지만 저장소에 둘 이유가 없다
+*_out.txt
