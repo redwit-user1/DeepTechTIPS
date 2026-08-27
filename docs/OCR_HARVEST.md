@@ -16,6 +16,43 @@
 
 > 본 저장소의 `data/` 는 gitignore 이며, 원문은 절대 커밋하지 않는다.
 
+## 로컬에서 시작하기 (텍스트 데이터 기준)
+
+**GPU·torch 불필요.** OCR 파이프라인 전체가 표준 라이브러리만 사용하므로
+Python 3.9+ 만 있으면 노트북에서도 돈다(`pip install` 조차 필요 없다).
+
+```bash
+git clone <이 저장소> && cd DeepTechTIPS
+git checkout claude/busy-wright-11w7w4
+
+export GOONO_DEID_SALT='조직 고유 비밀값'     # 비식별화 salt (공개 금지)
+bash scripts/run_local_ocr.sh /path/to/ocr    # 1~2단계 자동 (dry-run)
+```
+
+표본 결과를 확인한 뒤 전량 처리:
+```bash
+bash scripts/run_local_ocr.sh /path/to/ocr --write
+```
+
+산출물:
+- `ocr_profile.json` — 구조·품질 통계. **원문 미포함이라 공유 가능**
+- `data/real/labnote/notes.jsonl` — 비식별화된 구조화 레코드(gitignore 대상)
+
+> 의존성이 필요한 것은 **학습 단계뿐**이다(`pip install -e ".[train]"`).
+> 데이터 수확·무결성 검사는 그 전에 로컬에서 끝낼 수 있다.
+
+### 이 세션에서 함께 작업하려면
+
+7GB 는 관리형 개발 VM 에 올릴 수 없다. 두 선택지가 있다.
+
+| 방법 | 설명 |
+|---|---|
+| **A. `claude --teleport`** | 이 세션을 로컬로 옮긴다. 대화 맥락이 유지된 채 **실데이터를 보며 파서를 함께 조정**할 수 있다. → `docs/H100_PLAN.md` |
+| B. 결과만 공유 | 로컬에서 스크립트를 돌리고 `ocr_profile.json` 과 콘솔 출력(원문 없음)만 공유. 그에 맞춰 파서를 수정해 푸시 |
+
+실데이터는 형식이 제각각이라 **파서 조정이 한두 번은 필요하다.**
+A 가 반복 속도가 훨씬 빠르다.
+
 ## 3단계 파이프라인
 
 ### 1단계 — 프로파일링 (내용 노출 없음)

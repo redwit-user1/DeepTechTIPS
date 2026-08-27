@@ -85,9 +85,11 @@ python -m compliance_gateway.data.korean.build_kr
 python -m compliance_gateway.data.labnote.generate --notes 40   # docs/DATASET_LABNOTE.md
 python -m compliance_gateway.eval.labnote --compare-vcr
 
-# (F) 보유 중인 OCR 연구노트 실데이터 수확 (로컬/H100에서 실행)
-python scripts/profile_ocr_dataset.py /path/to/ocr              # docs/OCR_HARVEST.md
-python -m compliance_gateway.data.ocr.harvest /path/to/ocr --limit 500
+# (F) 보유 중인 OCR 연구노트 실데이터 수확 — 로컬에서 실행
+#     GPU·torch 불필요(표준 라이브러리만). docs/OCR_HARVEST.md
+export GOONO_DEID_SALT='조직 고유 비밀값'
+bash scripts/run_local_ocr.sh /path/to/ocr          # 프로파일링 → 표본 수확
+bash scripts/run_local_ocr.sh /path/to/ocr --write  # 전량 수확·저장
 ```
 
 > 🔍 **VCR 로는 연구노트를 평가할 수 없다.** 연구노트는 1차 기록이라 인용이 없어

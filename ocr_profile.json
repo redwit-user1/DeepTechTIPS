@@ -1,0 +1,11 @@
+{
+  "root": "data/synth/labnote/txt",
+  "total_files": 120,
+  "total_bytes": 206288,
+  "ext_count": {
+    ".txt": 120
+  },
+  "ext_bytes": {
+    ".txt": 206288
+  }
+}
