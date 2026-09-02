@@ -77,9 +77,25 @@ _CODE = re.compile(
     r"=>|\{\s*$|\}\s*$|;\s*$|</\w+>|\breturn\b|\bif\s*\(|\bfor\s*\(",
     re.MULTILINE,
 )
+# GOONO GitHub 연동 내보내기는 `commit <ISO 타임스탬프>` 형식이고 해시는 URL 끝에 붙는다.
+# 기존 패턴은 `commit <해시>` 만 봐서 이 형식을 통째로 놓쳤다. 그 결과 커밋 목록이
+# code_meta 나 fragment 로 밀렸다(실측: code_meta 예측 10건 중 9건이 실제 커밋).
 _COMMIT = re.compile(
-    r"\bcommit\s+[0-9a-f]{7,40}\b|^Author:\s|^Date:\s|^\+\+\+ |^--- |^@@ .* @@|"
-    r"Merge pull request|Signed-off-by:|\bgit\s+(?:add|commit|push|pull|merge|checkout)\b",
+    r"\bcommit\s+[0-9a-f]{7,40}\b|"
+    r"\bcommit\s+20\d\d-\d\d-\d\dT|"            # commit 2024-12-09T08:26:22.000Z
+    r"/git/commits/[0-9a-f]{7,40}|"             # api.github.com/.../git/commits/<hash>
+    r"^Author:\s|^Date:\s|^\+\+\+ |^--- |^@@ .* @@|"
+    r"Merge\s+(?:pull\s+request|branch)|Signed-off-by:|"
+    r"\bcommit\s+message\b|\bauthored\b|"
+    r"\bgit\s+(?:add|commit|push|pull|merge|checkout)\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+# 설정·메타 파일의 **양성** 표지. 이게 없으면 code_meta 로 보내지 않는다.
+_CONFIG = re.compile(
+    r"package\.json|package-lock|yarn\.lock|Dockerfile|docker-compose|requirements\.txt|"
+    r"pyproject\.toml|setup\.py|pom\.xml|build\.gradle|tsconfig|\.eslintrc|\.gitignore|"
+    r"Makefile|CMakeLists|Chart\.yaml|values\.yaml|nginx\.conf|"
+    r"^\s*(?:version|dependencies|devDependencies|scripts|image|ports|volumes)\s*:",
     re.MULTILINE | re.IGNORECASE,
 )
 _MARKDOWN = re.compile(
@@ -110,7 +126,11 @@ def code_subtype(sig: dict[str, int]) -> str:
         return "code_source"
     if sig["markdown"] >= 3:
         return "code_docs"
-    return "code_meta"      # repo 힌트만 강한 경우(진입 조건 완화 시 도달)
+    # 남은 것을 무조건 code_meta 로 보내면 안 된다 — 실측 10건 중 9건이 실제로는
+    # 커밋 목록이었다(정밀도 0%). 설정 파일의 **양성 표지**를 요구한다.
+    if sig["config"] >= 1:
+        return "code_meta"
+    return "code_commit"
 
 
 # 분류에는 앞부분만으로 충분하다. 전문을 매번 스캔하면 10만 행에서 수 분이 걸린다.
@@ -144,6 +164,7 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
         "commit": _count(_COMMIT, t),
         "markdown": _count(_MARKDOWN, t),
         "repo": _count(_REPO_HINT, t),
+        "config": _count(_CONFIG, t),
     }
     if len(full) < MIN_CONTENT:
         return "fragment", sig
@@ -156,16 +177,19 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
         return code_subtype(sig), sig
 
     # 행정은 연구 내용이 아니므로 걸러낸다(단, 실험 신호가 강하면 제외하지 않음)
-    if sig["admin"] >= 3 and sig["num_unit"] + sig["exp"] < 3:
+    if sig["admin"] >= 2 and sig["num_unit"] + sig["exp"] < 3:
         return "admin", sig
     # 실험 기록: 수치·단위가 실제로 있고 실험 용어가 동반
+    # 무작위 표본 실측에서 예측 32.9% / 실제 32.9% 로 이 조건만은 정확하다. 건드리지 않는다.
     if sig["num_unit"] >= 3 and sig["exp"] >= 2:
         return "experimental", sig
-    if sig["lit"] >= 3:
+    # 문헌·계획은 6.0배·5.0배 **과소** 예측이었다(실측). 임계값을 2 로 낮춘다.
+    # 분석은 1.8배 과대였으므로 3 을 유지한다.
+    if sig["lit"] >= 2:
         return "literature", sig
     if sig["analysis"] >= 3:
         return "analysis", sig
-    if sig["plan"] >= 3:
+    if sig["plan"] >= 2:
         return "planning", sig
     # 수치만 많은 경우도 연구 데이터로 본다(표·측정값 목록)
     if sig["num_unit"] >= 5:
@@ -183,7 +207,9 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
         "literature": sig["lit"],
         "planning": sig["plan"],
     }
-    if sum(research_sig.values()) >= 3:
+    # 실측(무작위 표본 170건): fragment 예측 39.4% vs 실제 17.1% — 2.3배 과대였다.
+    # 즉 이 구제가 여전히 부족하다. 임계값을 3 → 2 로 낮춘다.
+    if sum(research_sig.values()) >= 2:
         return max(research_sig, key=lambda k: research_sig[k]), sig
     # 수치가 조금이라도 있고 본문이 충분히 길면 측정 기록으로 본다
     if sig["num_unit"] >= 2 and len(full) >= 300:
