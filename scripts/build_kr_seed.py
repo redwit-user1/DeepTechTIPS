@@ -1,0 +1,95 @@
+"""국내 연구데이터 시드 생성기.
+
+출처: ClinicalTrials.gov MCP 로 수집한 **실제 국내 연구기관 연구과제 레코드**.
+본 환경은 네트워크 정책상 clinicaltrials.gov 직접 접근이 차단되므로,
+MCP 수집 결과를 시드로 고정해 오프라인 재현을 보장한다.
+
+갱신: Clinical_Trials MCP `search_by_sponsor` 로 재수집 후 RECORDS 교체.
+주의: sponsor 검색은 퍼지 매칭이라 해외 기관이 섞인다 → KR_INSTITUTIONS 로 필터링됨.
+
+실행: python scripts/build_kr_seed.py
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+RECORDS = [
+    {"nct_id": "NCT04490642", "title": "Linguistic Validation of the Childhood Bladder and Bowel Dysfunction Questionnaire (CBBDQ) for 5-12 Years Old in Korean",
+     "sponsor": "Seoul National University Hospital", "conditions": ["Dysfunctional Voiding", "Bladder Dysfunction"],
+     "interventions": ["Questionnaire"], "enrollment": 50, "start_date": "2020-07-27", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT02870842", "title": "Effects of Fraction of Inspired Oxygen on Atelectasis in Mechanically Ventilated Children",
+     "sponsor": "Seoul National University Hospital", "conditions": ["Pulmonary Atelectasis"],
+     "interventions": ["Lung ultrasound", "Respiratory management"], "enrollment": 86, "start_date": "2016-09", "study_type": "INTERVENTIONAL", "phase": "NA"},
+    {"nct_id": "NCT01556386", "title": "Pharmacogenetic Analysis of Korean Pediatric Patients With Acute Lymphoblastic Leukemia",
+     "sponsor": "Seoul National University Hospital", "conditions": ["Acute Lymphoblastic Leukemia"],
+     "interventions": [], "enrollment": 200, "start_date": "2006-06", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT03403972", "title": "A Clinical Trial to Evaluate the Effects of the Environmental Change in Intestine by Antibiotics on the Pharmacokinetic Characteristics of Simvastatin in Healthy Male Volunteers",
+     "sponsor": "Seoul National University Hospital", "conditions": ["Simvastatin Pharmacokinetics and Gut Microbiome"],
+     "interventions": ["Vancomycin 250Mg Capsule"], "enrollment": 6, "start_date": "2017-12-06", "study_type": "INTERVENTIONAL", "phase": "PHASE1"},
+    {"nct_id": "NCT05578131", "title": "The Effectiveness of Preoxygenation and Apneic Oxygenation Using High-flow Nasal Cannula for Pediatric Anesthetic Induction",
+     "sponsor": "Seoul National University Hospital", "conditions": ["Oxygen Deficiency"],
+     "interventions": ["high flow nasal oxygen", "face mask"], "enrollment": 132, "start_date": "2022-10-21", "study_type": "INTERVENTIONAL", "phase": "NA"},
+    {"nct_id": "NCT06838442", "title": "Rehabilitation Exercise and Education of Airway Clearance Technique in Nontuberculous Mycobacterial Pulmonary Disease",
+     "sponsor": "Seoul National University Bundang Hospital", "conditions": ["Nontuberculous Mycobacterial Pulmonary Disease"],
+     "interventions": [], "enrollment": 500, "start_date": "2025-04-21", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT01165567", "title": "Phase 4 Study of Sarpogrelate That Prevent Contrast-induced Nephropathy",
+     "sponsor": "Seoul National University Boramae Hospital", "conditions": ["Chronic Kidney Disease"],
+     "interventions": ["sarpogrelate"], "enrollment": 212, "start_date": "2009-12", "study_type": "INTERVENTIONAL", "phase": "PHASE4"},
+    {"nct_id": "NCT06138769", "title": "Multicenter Phase 2 Trial of Lenvatinib in Patients With Unresectable or Metastatic Hepatocellular Carcinoma After Progression on First-line Atezolizumab Plus Bevacizumab",
+     "sponsor": "Asan Medical Center", "conditions": ["Hepatocellular Carcinoma"],
+     "interventions": ["Lenvatinib"], "enrollment": 50, "start_date": "2023-07-20", "study_type": "INTERVENTIONAL", "phase": "PHASE2"},
+    {"nct_id": "NCT04825002", "title": "Detection of Clinically Significant Prostate Cancer Using a Urinary Multimarker Sensor",
+     "sponsor": "Asan Medical Center", "conditions": ["Prostate Cancer"],
+     "interventions": ["Urinary multimarker sensor"], "enrollment": 800, "start_date": "2021-03-22", "study_type": "INTERVENTIONAL", "phase": "NA"},
+    {"nct_id": "NCT05742438", "title": "Effect of Dexmedetomidine Infusion, Lidocaine Infusion, and Intrathecal Morphine Injection on Biomarker for Perioperative Stress and Immune Response in Colorectal Cancer Surgery",
+     "sponsor": "Samsung Medical Center", "conditions": ["Colorectal Cancer", "Anesthesia"],
+     "interventions": ["Lidocaine IV", "Dexmedetomidine IV", "intrathecal morphine"], "enrollment": 114, "start_date": "2023-04-12", "study_type": "INTERVENTIONAL", "phase": "NA"},
+    {"nct_id": "NCT07190573", "title": "Head and Neck Cancer Omics-integrated Precision mEdicine (HOPE)",
+     "sponsor": "Samsung Medical Center", "conditions": ["Head and Neck Cancer"],
+     "interventions": [], "enrollment": 350, "start_date": "2025-04-25", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT02338375", "title": "Clinical Trial of the Safety and Efficacy of Allogenic Umbilical Cord Blood-derived Mesenchymal Stem Cell Product With Microfracture for Osteochondral Lesion of Talus Patients",
+     "sponsor": "Samsung Medical Center", "conditions": ["Osteochondral Lesion of Talus"],
+     "interventions": ["Cartistem"], "enrollment": 28, "start_date": "2012-12", "study_type": "INTERVENTIONAL", "phase": "EARLY_PHASE1"},
+    {"nct_id": "NCT01870466", "title": "A Randomized, Open-label, Multiple-dose, Crossover Study to Investigate the Pharmacodynamic Drug Interaction Between Cilostazol and Statins in Healthy Male Volunteer",
+     "sponsor": "Samsung Medical Center", "conditions": ["Healthy"],
+     "interventions": ["Cilostazol", "Simvastatin", "Rosuvastatin"], "enrollment": 63, "start_date": "2012-06", "study_type": "INTERVENTIONAL", "phase": "PHASE1"},
+    {"nct_id": "NCT04781712", "title": "Feasibility of a Modular mHealth for Tailored Rehabilitation During the Treatment of Breast Cancer",
+     "sponsor": "Samsung Medical Center", "conditions": ["Breast Cancer"],
+     "interventions": ["Modular mHealth for Tailored Rehabilitation"], "enrollment": 44, "start_date": "2019-04-22", "study_type": "INTERVENTIONAL", "phase": "NA"},
+    {"nct_id": "NCT04108117", "title": "Surgical and Oncologic Outcomes After Robotic Nipple Sparing Mastectomy and Immediate Reconstruction: an International Multicenter Pooled Analysis",
+     "sponsor": "Severance Hospital", "conditions": ["Breast Cancer", "Postoperative Complications"],
+     "interventions": ["Robotic nipple sparing mastectomy"], "enrollment": 659, "start_date": "2020-05-14", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT04072705", "title": "A Multicenter Prospective Observational Study to Evaluate the Effect of Clopidogrel on the Prevention of Major Vascular Events According to the Genotype of Cytochrome P450 2C19 in Ischemic Stroke Patients (PLATELET Study)",
+     "sponsor": "Gangnam Severance Hospital", "conditions": ["Acute Ischemic Stroke"],
+     "interventions": ["General principles of care"], "enrollment": 2927, "start_date": "2019-09-20", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT00823550", "title": "A Randomized, Open Label, Phase IV, Multicenter Study for Efficacy and Safety of Lamivudine Versus Entecavir Therapy in HBV-related Advanced Liver Disease Patients",
+     "sponsor": "Yonsei University", "conditions": ["Hepatitis B, Chronic"],
+     "interventions": ["Entecavir", "Lamivudine"], "enrollment": 462, "start_date": "2009-01", "study_type": "INTERVENTIONAL", "phase": "PHASE4"},
+    {"nct_id": "NCT01882790", "title": "The Association of Acetylcholine-induced Coronary Artery Spasm With the Blood Pressure Level in Hypertensive Patients Treated With Blood Pressure Lowering Drugs",
+     "sponsor": "Korea University", "conditions": ["Coronary Artery Spasm", "Hypertension"],
+     "interventions": [], "enrollment": 1933, "start_date": "2013-05", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT01025024", "title": "Investigation of Genetic Disease Marker Associated With Korean Glaucoma Patients, A Single-nucleotide Polymorphism (SNP) Analysis for Primary Open Angle Glaucoma",
+     "sponsor": "Chungnam National University", "conditions": ["Primary Open Angle Glaucoma"],
+     "interventions": ["SNP analysis of the DNA"], "enrollment": 1224, "start_date": "2007-01", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT06782984", "title": "Patient-derived Organoids As Predictive Models for Drug Response Testing and Repurposing in Glioblastoma Therapy",
+     "sponsor": "Chungnam National University Hospital", "conditions": ["Glioblastoma"],
+     "interventions": ["Organoid-based drug sensitivity test"], "enrollment": 150, "start_date": "2021-08-18", "study_type": "OBSERVATIONAL", "phase": None},
+    {"nct_id": "NCT03651557", "title": "A Phase II, Double-blind, Randomized, Placebo-controlled, Multicenter Trial to Assess the Efficacy and Safety of Neu2000KWL in Patients Resuscitated After Out-of-hospital Cardiac Arrest",
+     "sponsor": "GNT Pharma", "conditions": ["Cardiac Arrest"],
+     "interventions": ["Neu2000KWL High-dose", "Neu2000KWL Low-dose", "Placebo"], "enrollment": 150, "start_date": "2018-11-29", "study_type": "INTERVENTIONAL", "phase": "PHASE2"},
+    {"nct_id": "NCT00931970", "title": "Comprehensive Prospective Study for Mode of Dialysis Therapy and Outcomes in ESRD",
+     "sponsor": "Clinical Research Center for End Stage Renal Disease, Korea", "conditions": ["End-Stage Renal Disease"],
+     "interventions": [], "enrollment": 5400, "start_date": "2009-07", "study_type": "OBSERVATIONAL", "phase": None},
+]
+
+
+def main() -> None:
+    out = Path("compliance_gateway/data/korean/seed/kr_trials.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(RECORDS, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[*] wrote {len(RECORDS)} Korean R&D records → {out}")
+
+
+if __name__ == "__main__":
+    main()

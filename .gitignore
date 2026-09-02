@@ -1,0 +1,35 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+.env
+*.log
+
+# 모델/데이터 (대용량·재생성 가능 — 별도 스토리지)
+*.safetensors
+*.gguf
+*.bin
+# 선행 슬래시 필수 — `data/` 로 쓰면 compliance_gateway/data/ 소스 패키지까지 차단된다
+/data/
+models/
+checkpoints/
+# 단, compliance_gateway/data/seed/ 는 커밋(파이프라인 재현용 실데이터 시드)
+
+# ── 고객 실데이터 — 절대 커밋 금지 ──────────────────────────────────
+# GOONO OCR 내보내기 등 원본. 미공개 연구내용·개인정보를 포함한다.
+*.csv
+ocr_*.json
+!compliance_gateway/**/seed/*.json
+
+# 분석 스크립트 stdout 덤프 — 집계값뿐이지만 저장소에 둘 이유가 없다
+*_out.txt
+
+# 라벨 채점 산출물 — 파생 통계지만 저장소에 둘 이유가 없다
+label_agreement.json
+ocr_corrected.json
+ocr_retriage.json
