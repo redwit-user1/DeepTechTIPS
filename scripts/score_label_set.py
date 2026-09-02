@@ -32,21 +32,35 @@ CORPUS_PCT = {
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("label_csv")
+    ap.add_argument("--col", default="label",
+                    help="판정 칸. label=사람 검수, model_label=모델 2차 판정")
+    ap.add_argument("--macro", action="store_true",
+                    help="연구/GitHub/기타 3대분류로 접어서 채점")
     ap.add_argument("--json", default="")
     a = ap.parse_args()
 
-    rows = []
-    with Path(a.label_csv).open(encoding="utf-8-sig") as f:
-        for line in f:
-            if not line.startswith("#"):
-                break
-        f.seek(0)
-        rows = [r for r in csv.DictReader(
-            (l for l in f if not l.startswith("#")))]
+    # 배너는 **헤더 앞부분만** 걷어낸다. 전체 줄에서 `#` 시작 줄을 거르면
+    # 인용 필드 안의 본문 줄까지 지워져 CSV 가 깨진다(실제로 깨졌다).
+    lines = Path(a.label_csv).read_text(encoding="utf-8-sig").splitlines(True)
+    i = 0
+    while i < len(lines) and lines[i].startswith("#"):
+        i += 1
+    rows = list(csv.DictReader(lines[i:]))
 
-    labeled = [r for r in rows if (r.get("label") or "").strip()]
+    labeled = [r for r in rows if (r.get(a.col) or "").strip()]
     if not labeled:
-        raise SystemExit("label 칸이 비어 있다. 사람이 채운 뒤 다시 실행하라.")
+        raise SystemExit(f"{a.col} 칸이 비어 있다. 채운 뒤 다시 실행하라.")
+    if a.col != "label":
+        print(f"  [주의] `{a.col}` 기준 채점이다. 사람 검수(label)가 아니므로")
+        print( "         정확도가 아니라 **일치도**로만 읽어야 한다.")
+
+    RESEARCH = {"experimental", "analysis", "literature", "planning"}
+    GITHUB = {"code_source", "code_commit", "code_meta", "code_docs"}
+
+    def fold(b):
+        if not a.macro:
+            return b
+        return "연구내용" if b in RESEARCH else "GitHub" if b in GITHUB else "기타"
 
     conf: dict[tuple[str, str], int] = Counter()
     per: dict[str, list[int]] = defaultdict(lambda: [0, 0])   # [맞음, 전체]
@@ -54,8 +68,9 @@ def main() -> None:
 
     for r in labeled:
         pred = r["pred_bucket"].strip()
-        gold = r["label"].strip()
+        gold = r[a.col].strip()
         gold = pred if gold.lower() == "ok" else gold
+        pred, gold = fold(pred), fold(gold)
         conf[(gold, pred)] += 1
         per[gold][1] += 1
         if gold == pred:
@@ -72,14 +87,17 @@ def main() -> None:
     # 실제 코퍼스 비율로 가중 — 층화 추출 보정
     wsum = num = 0.0
     for b, (ok, tot) in per.items():
-        w = CORPUS_PCT.get(b)
+        w = (sum(v for k, v in CORPUS_PCT.items() if fold(k) == b)
+             if a.macro else CORPUS_PCT.get(b))
         if w and tot:
             num += w * (ok / tot)
             wsum += w
     weighted = num / wsum if wsum else 0.0
 
     print("=" * 68)
-    print(f" 분류기 정확도 — 사람 라벨 {n}건 / 전체 {len(rows)}건")
+    label_kind = "사람 검수" if a.col == "label" else "모델 2차 판정"
+    scope = "3대분류" if a.macro else "10개 버킷"
+    print(f" 분류기 일치도 — {label_kind} {n}건 / 전체 {len(rows)}건 · {scope}")
     print("=" * 68)
     print(f"\n  표본 정확도(비가중)   {raw*100:5.1f}%   <- 층화 추출이라 그대로 쓰면 안 된다")
     print(f"  코퍼스 가중 정확도    {weighted*100:5.1f}%   <- 이게 방어 가능한 수치다")
@@ -92,7 +110,7 @@ def main() -> None:
         pred_tot = sum(c for (g, p), c in conf.items() if p == b)
         prec = ok / pred_tot if pred_tot else 0.0
         print(f"  {b:14s} 재현율 {ok/tot*100:5.1f}% ({ok:>3}/{tot:<3})"
-              f"  정밀도 {prec*100:5.1f}%  실제비율 {CORPUS_PCT.get(b,0)*100:4.1f}%")
+              f"  정밀도 {prec*100:5.1f}%  실제비율 {sum(v for k,v in CORPUS_PCT.items() if fold(k)==b)*100:4.1f}%")
 
     print("\n[주요 혼동] 정답 → 예측 (5건 이상)")
     for (g, p), c in sorted(conf.items(), key=lambda kv: -kv[1]):

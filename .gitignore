@@ -28,3 +28,8 @@ ocr_*.json
 
 # 분석 스크립트 stdout 덤프 — 집계값뿐이지만 저장소에 둘 이유가 없다
 *_out.txt
+
+# 라벨 채점 산출물 — 파생 통계지만 저장소에 둘 이유가 없다
+label_agreement.json
+ocr_corrected.json
+ocr_retriage.json
