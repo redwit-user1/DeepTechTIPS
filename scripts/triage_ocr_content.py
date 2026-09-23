@@ -63,9 +63,24 @@ _PLANNING = re.compile(
     r"계획|목표|추진|일정|로드맵|마일스톤|예산|소요|연차|과제\s*제안|"
     r"기대\s*효과|활용\s*방안|필요성|배경"
 )
+# 실측(무작위 360건): admin 예측 0.3% vs 실제 5.3% — 거의 미작동이었다.
+# 연구비 정산 어휘만 있었는데, 실제 행정 문서는 증명서·안내·인증·계약이 더 많다.
 _ADMIN = re.compile(
     r"정산|증빙|영수|지출|품의|기안|결재|청구|세금계산서|출장|"
-    r"인건비|재료비|간접비|협약|규정\s*제\d|별지|서식"
+    r"인건비|재료비|간접비|협약|규정\s*제\d|별지|서식|"
+    r"확인서|증명서|신고번호|등록번호|사업자|법인등록|인감|"
+    r"수강|환불|교육\s*일정|안내\s*드립니다|신청서|접수번호|"
+    r"제조번호|유통기한|판매자|주소,\s*연락처|4대\s*보험|가입\s*내역"
+)
+# 실측: code_docs 예측 0.6% vs 실제 4.2%. markdown 3개 요구가 너무 셌다.
+# CI 출력·PR 리포트·API 명세의 양성 표지를 따로 둔다.
+_DOCS = re.compile(
+    r"Unit\s+Test\s+Results|Coverage\s+(?:report|Diff)|codecov|coderabbit|"
+    r"##\s*(?:PR|issue|commit|Walkthrough|Summary)|PR\s+Report|"
+    r"Merged|Checks?\s+\d|Files\s+changed|new\s+comment\s+by|open\s+issued\s+by|"
+    r"pull\s+request|Build\s+(?:failed|passed)|jenkins|"
+    r"status\s*code|API\s*(?:Set|명세|/)|endpoint",
+    re.IGNORECASE,
 )
 
 # ── GitHub 연동 콘텐츠 ───────────────────────────────────────────────
@@ -109,7 +124,9 @@ _REPO_HINT = re.compile(
     re.IGNORECASE,
 )
 
-MIN_CONTENT = 80          # 이보다 짧으면 조각으로 본다(200 → 80 으로 완화)
+MIN_CONTENT = 80            # 이보다 짧으면 무조건 조각
+# 이보다 길면 조각으로 보내지 않는다. 실측 근거는 classify_content 말미 주석.
+FRAGMENT_MAX = 300
 
 
 def code_subtype(sig: dict[str, int]) -> str:
@@ -165,6 +182,7 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
         "markdown": _count(_MARKDOWN, t),
         "repo": _count(_REPO_HINT, t),
         "config": _count(_CONFIG, t),
+        "docs": _count(_DOCS, t),
     }
     if len(full) < MIN_CONTENT:
         return "fragment", sig
@@ -179,18 +197,24 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
     # 행정은 연구 내용이 아니므로 걸러낸다(단, 실험 신호가 강하면 제외하지 않음)
     if sig["admin"] >= 2 and sig["num_unit"] + sig["exp"] < 3:
         return "admin", sig
+    # GitHub 문서(CI 출력·PR 리포트·API 명세)는 markdown 표지가 약해도 잡는다.
+    if sig["docs"] >= 2 and sig["num_unit"] + sig["exp"] < 3:
+        return "code_docs", sig
     # 실험 기록: 수치·단위가 실제로 있고 실험 용어가 동반
     # 무작위 표본 실측에서 예측 32.9% / 실제 32.9% 로 이 조건만은 정확하다. 건드리지 않는다.
     if sig["num_unit"] >= 3 and sig["exp"] >= 2:
         return "experimental", sig
     # 문헌·계획은 6.0배·5.0배 **과소** 예측이었다(실측). 임계값을 2 로 낮춘다.
     # 분석은 1.8배 과대였으므로 3 을 유지한다.
+    # 순서가 중요하다. `analysis` 예측 42건 중 정답이 12건뿐이고 나머지가
+    # planning(21%)·literature(21%)였다 — analysis 가 둘을 빨아들인다.
+    # 더 구체적인 두 범주를 **먼저** 본다.
     if sig["lit"] >= 2:
         return "literature", sig
-    if sig["analysis"] >= 3:
-        return "analysis", sig
     if sig["plan"] >= 2:
         return "planning", sig
+    if sig["analysis"] >= 3:
+        return "analysis", sig
     # 수치만 많은 경우도 연구 데이터로 본다(표·측정값 목록)
     if sig["num_unit"] >= 5:
         return "experimental", sig
@@ -213,6 +237,33 @@ def classify_content(text: str) -> tuple[str, dict[str, int]]:
         return max(research_sig, key=lambda k: research_sig[k]), sig
     # 수치가 조금이라도 있고 본문이 충분히 길면 측정 기록으로 본다
     if sig["num_unit"] >= 2 and len(full) >= 300:
+        return "experimental", sig
+
+    # ── 길이 기반 최종 방어 ──────────────────────────────────────────
+    # 실측(무작위 360건): fragment 로 예측된 114건 중 진짜 조각은 48건뿐이고,
+    # 진짜 조각의 중앙 길이는 161자인데 오분류의 중앙 길이는 629자였다.
+    # 300자를 기준으로 하면 진짜 조각의 67% 가 그 아래, 오분류는 20% 만 그 아래다.
+    # → **길면 조각이 아니다.** 신호가 약해도 가장 그럴듯한 범주로 보낸다.
+    if len(full) >= FRAGMENT_MAX:
+        weak = {
+            "admin": sig["admin"], "code_docs": sig["docs"],
+            "literature": sig["lit"], "planning": sig["plan"],
+            "analysis": sig["analysis"],
+            "experimental": sig["num_unit"] + sig["exp"],
+        }
+        best = max(weak, key=lambda k: weak[k])
+        if weak[best] > 0:
+            return best, sig
+        # 신호가 전무한 긴 본문도 experimental 로 보낸다.
+        #
+        # 이 선택은 **비율을 희생하고 행 정확도를 얻는다.** 실측 비교:
+        #   보낼 때(v4)   3대분류 일치도 81.9% / experimental 비율 오차 +15.2p
+        #   안 보낼 때(v5) 3대분류 일치도 78.6% / experimental 비율 오차  +3.6p
+        #
+        # 분류기의 용도는 **학습셋에 넣을 행을 고르는 것**이지 비율을 추정하는 게
+        # 아니다. 비율은 무작위 표본 360건으로 직접 쟀다(연구 내용 59.4% ±5.1).
+        # 따라서 행 정확도를 택한다. 비율을 인용할 때는 분류기 출력이 아니라
+        # 그 표본값을 써야 한다.
         return "experimental", sig
     return "fragment", sig
 
