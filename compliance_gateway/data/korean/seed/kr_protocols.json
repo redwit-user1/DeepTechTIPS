@@ -1,0 +1,479 @@
+[
+ {
+  "nct_id": "NCT04072705",
+  "sponsor": "Gangnam Severance Hospital",
+  "sponsor_ko": "강남세브란스병원",
+  "title": "A Multicenter Prospective observationaL Study to evAluate the effecT of Clopidogrel on the prEvention of Major vascuLar Events According to the gEnotype of Cytochrome P450 2C19 in Ischemic Stroke paTients; PLATELET Study",
+  "enrollment": 2927,
+  "start_date": "2019-09-20",
+  "conditions": [
+   "Acute Ischemic Stroke"
+  ],
+  "brief_summary": "The hypothesis of this study is that \"the poor metabolizer or intermediate metabolizer of the cytochrome P450 2C19 genotype in patients with acute ischemic stroke is associated with increased risk of composite cardiovascular events (recurrent stroke, myocardial infarction, cardiovascular death) compared to those who of extensive metabolizer of the cytochrome P450 2C19 genotype\".",
+  "detailed_description": "Clopidogrel, one of the antiplatelet agents used for secondary prevention in patients with ischemic stroke and coronary artery disease, has been shown to have a superior antiplatelet effect compared to aspirin. Clopidogrel inhibits platelet-derived ADP receptor, P2Y12, in the liver to produce an anti-platelet effect. Previous studies reported that the genotypes of Cytochrome P450 2C19, which is involved in the metabolism of clopidogrel in the liver, lead to differences in drug response and recurrence rates of cardiovascular disease. The risk of recurrence of ischemic stroke was reported to be about 4 times higher in patients with a poor metabolizer or intermediate metabolizer genotype of the Cytochrome P450 2C19 genotype compared to the extensive metabolizer genotype.",
+  "primary_outcome": "Occurrence of composite cardiovascular events (recurrent stroke, myocardial infarction, cardiovascular death)",
+  "inclusion": "Ischemic stroke confirmed by brain CT or MRI",
+  "sites": [
+   "Yongin Severance Hospital",
+   "Korea University Ansan Hospital",
+   "Hallym University Sacred Heart Hospital",
+   "Kyungpook National University Hospital",
+   "Seoul National University Hospital",
+   "Chung-Ang University Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT03403972",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "A Clinical Trial to Evaluate the Effects of the Environmental Change in Intestine by Antibiotics on the Pharmacokinetic Characteristics of Simvastatin in Healthy Male Volunteers",
+  "enrollment": 6,
+  "start_date": "2017-12-06",
+  "conditions": [
+   "Simvastatin Pharmacokinetics and Gut Microbiome"
+  ],
+  "brief_summary": "This phase 1 clinical trial is to evaluate the effects of the environmental change in intestine by antibiotics on the pharmacokinetic characteristics of simvastatin in healthy male volunteers. For change of intestine environment, especially the gut microbiota, investigators will administer PO vancomycin for 7 days, tid.",
+  "detailed_description": null,
+  "primary_outcome": "Compare the maximum plasma concentration (Cmax) of simvastatin before and after vancomycin PO treatment.",
+  "inclusion": "Age between 19 Y to 50 Y at the screening; Body weight over 55 kg and BMI should be between 18.0 to 25.0 kg/m2",
+  "sites": [
+   "Seoul National University Hospital Clinical Trial Center"
+  ]
+ },
+ {
+  "nct_id": "NCT06138769",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Multicenter Phase 2 Trial of Lenvatinib in Patients With Unresectable or Metastatic Hepatocellular Carcinoma After Progression on First-line Atezolizumab Plus Bevacizumab",
+  "enrollment": 50,
+  "start_date": "2023-07-20",
+  "conditions": [
+   "Hepatocellular Carcinoma"
+  ],
+  "brief_summary": "Although atezolizumab-bevacizumab has been positioned as the standard first-line therapy in unresectable heptocellular carcinoma, eventually most patients progressed on this regimen. Lenvatinib is approved first-line multikinase inhibitor in unresectable hepatocellular carcinoma, but has not yet been investigated as second-line therapy in prospective study. In this single arm phase 2 study, the efficacy and safety of lenvatinib will be investigated for patients who progressed on first-line atezolizumab-bevacizumab.",
+  "detailed_description": null,
+  "primary_outcome": "Progression-free survival: Time interval between the start of lenvatinb to the disease progression or any cause of death.",
+  "inclusion": "Diagnosis of HCC according to AASLD guidelines; Prior treatment with atezolizumab plus bevacizumab as first-line treatment for unresectable HCC",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT05742438",
+  "sponsor": "Samsung Medical Center",
+  "sponsor_ko": "삼성서울병원",
+  "title": "Effect of Dexmedetomidine Infusion, Lidocaine Infusion, and Intrathecal Morphine Injection on Biomarker for Perioperative Stress and Immune Response, and Cancer Progression and Metastasis in Colorectal Cancer Surgery",
+  "enrollment": 114,
+  "start_date": "2023-04-12",
+  "conditions": [
+   "Colorectal Cancer",
+   "Anesthesia"
+  ],
+  "brief_summary": "This is a prospective randomized controlled trial. Investigators aimed to compare the effect of three different anesthetic adjuvants (continuous infusion of lidocaine or dexmedetomidine, intrathecal morphine injection) on the biomarker for cancer recurrence and metastasis. Patients undergoing elective colorectal cancer surgery will be randomly allocated to three parallel arms.",
+  "detailed_description": "Perioperative period is critical in determining the risk of postoperative metastatic disease. Surgical damage and related stress response could suppress cell-mediated immunity and facilitate malignant cell survival, motility, invasion and proliferation. Increasing evidence supported that the continuous infusion of lidocaine or dexmedetomidine, or intrathecal morphine were associated with the reduction of postoperative pain and opioid consumption and improved the quality of recovery.",
+  "primary_outcome": "MMP-9: plasma Matrix metalloproteinase-9, measured 1 hour after surgery",
+  "inclusion": "Patients who were scheduled for elective colorectal cancer surgery American Society of Anesthesiologists physical status of I-III",
+  "sites": [
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT02338375",
+  "sponsor": "Samsung Medical Center",
+  "sponsor_ko": "삼성서울병원",
+  "title": "Clinical Trial of the Safety and Efficacy of Allogenic Umbilical Cord Blood-derived Mesenchymal Stem Cell Product With Microfracture for Osteochondral Lesion of Talus Patients",
+  "enrollment": 28,
+  "start_date": "2012-12",
+  "conditions": [
+   "Osteochondral Lesion of Talus"
+  ],
+  "brief_summary": "The purpose of this study is to evaluate the safety and efficacy of adding allogenic umbilical cord blood-derived stem cell product(Cartistem) on currently standard treatment of arthroscopic curettage and microfracture for osteochondral lesion of talus.",
+  "detailed_description": null,
+  "primary_outcome": "Efficacy of adding allogenic umbilical cord blood-derived stem cell product measured by American Orthopaedic Foot and Ankle Society (AOFAS) HINDFOOT/ANKLE SCALE",
+  "inclusion": "Non-responder to conservative treatment for radiographically confirmed (by MRI) osteochondral lesion of talus with ankle pain and/or stiffness and less than 75 of the AOFAS score; Age between 20 and 70 year-old",
+  "sites": [
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT05578131",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "The Effectiveness of Preoxygenation and Apneic Oxygenation Using High-flow Nasal Cannula for Pediatric Anesthetic Induction: a Prospective Randomized Open-label Clinical Trial",
+  "enrollment": 132,
+  "start_date": "2022-10-21",
+  "conditions": [
+   "Oxygen Deficiency"
+  ],
+  "brief_summary": "Endotracheal intubation in infants often involves more than one attempt, and oxygen desaturation is common. The investigators tested the hypothesis that high-flow nasal oxygen cannulae would be effective in maintaining oxygen saturation during intubation than facemasks for pre-oxygenation. The investigators randomly allocated 132 patients undergoing elective surgery aged <=12 months to pre-oxygenation using either high-flow nasal oxygen or facemask.",
+  "detailed_description": null,
+  "primary_outcome": "Occurrence of oxygen desaturation <95% from induction of anesthesia to 1 minutes after intubation",
+  "inclusion": "Infants undergoing general anesthesia with endotracheal intubation.",
+  "sites": [
+   "Seoul National University Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT04825002",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Detection of Clinically Significant Prostate Cancer Using a Urinary Multimarker Sensor",
+  "enrollment": 800,
+  "start_date": "2021-03-22",
+  "conditions": [
+   "Prostate Cancer"
+  ],
+  "brief_summary": "This trial aims to develop and validate the urinary multimarker sensor which can measure trace amounts of biomarkers from naturally voided urine in men referred with clinical suspicion of prostate cancer who have had no prior prostate biopsy. The investigators hypothesize that urinary multimarker sensor will help to avoid unnecessary prostate biopsy while detect the clinically significant cancers.",
+  "detailed_description": "The investigators will develop a urinary multimarker sensor, able to measure trace amounts of biomarkers from naturally voided urine. Biomarkers diffused passively from prostate tissue to the urethra and will be collected from naturally voided urine. To measure the electrical signals from the four different biomarkers in the urine, the four sensing channels in the extended gate of an field-effect transistor biosensor will be conjugated to antibodies, thus capturing different biomarkers. After 20 min of reaction time in the four channels, the bottom gate voltage shifts will be measured at the reference current (1 nA).",
+  "primary_outcome": "Presence vs. absence of clinically significant prostate cancer on prostate biopsy (>=Gleason score 3+4)",
+  "inclusion": "Men undergoing a first-time prostate biopsy to rule out cancer; Serum PSA >=3ng/mL, <=20ng/mL; Age>=50 years, <=80 years",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT03651557",
+  "sponsor": "GNT Pharma",
+  "sponsor_ko": "지엔티파마",
+  "title": "A Phase II, Double-blind, Randomized, Placebo-controlled, Multicenter Trial to Assess the Efficacy and Safety of Neu2000KWL in Patients Who Resuscitated After Out-of-hospital Cardiac Arrest Patient and Receiving Therapeutic Hypothermia",
+  "enrollment": 150,
+  "start_date": "2018-11-29",
+  "conditions": [
+   "Cardiac Arrest"
+  ],
+  "brief_summary": "This study aims to investigate the efficacy and safety of Neu2000KWL, a neuroprotectant, in patients resuscitated from out-of-hospital cardiac arrest and receiving therapeutic hypothermia.",
+  "detailed_description": "Lack of good neurological recovery is the biggest hurdle in the treatment of out-of-hospital cardia arrest. Neu2000KWL, a N-Methyl-D-aspartate (NMDA) receptor antagonist and an antioxidant, attenuated cerebral neuronal death and reduced hypoxic injury of brain in preclinical studies. Phase I clinical study has revealed that Neu2000KWL is very safe for treating human. In current study, the investigators will assess the efficacy of Neu2000KWL to compare the neurological biomarker, brain imaging, and clinical outcomes of patients successfully resuscitated from out-of-cardiac arrest treated by 3-day infusion of Neu2000KWL with patients assigned to placebo arm.",
+  "primary_outcome": "Verification of difference of Neuron specific enolase (NSE) value after 4th infusion of Neu2000KWL",
+  "inclusion": "Out-of-hospital cardiac arrest caused by non-perfusing cardiac rhythm; Successful resuscitation accompanied by ROSC time of more than 20 min",
+  "sites": [
+   "Kyungpook National University Hospital",
+   "Soonchunhyang University Bucheon Hospital",
+   "Pusan National University Hospital",
+   "Chonnam National University Hospital",
+   "Gangnam Severance Hospital",
+   "Samsung Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT06782984",
+  "sponsor": "Chungnam National University Hospital",
+  "sponsor_ko": "충남대학교병원",
+  "title": "Patient-derived Organoids As Predictive Models for Drug Response Testing and Repurporsing in Glioblastoma Therapy",
+  "enrollment": 150,
+  "start_date": "2021-08-18",
+  "conditions": [
+   "Glioblastoma"
+  ],
+  "brief_summary": "The aim of this observational study, based on a prospectively collected cohort, is to evaluate the prognostic value of patient-derived organoids in predicting responses to conventional and repurposing drugs, including temozolomide, in patients with primary or recurrent glioblastoma. The primary question is whether the patient's response to temozolomide is recapitulated in their corresponding patient-derived glioblastoma organoid (GBO).",
+  "detailed_description": "Glioblastoma multiforme (GBM) remains a highly aggressive brain tumor with limited treatment options and a poor prognosis. Temozolomide (TMZ) is the only approved first-line therapy, but frequent resistance limits its efficacy. In our previous study, we established 20 GBO lines using a serum-free protocol, preserving the histopathological and genomic features of the parental tumors. GBO Drug Sensitivity Testing (GBO-DST) was developed to evaluate TMZ responsiveness and to screen several FDA-approved drugs, including Lazertinib and Regorafenib. This study aims to establish 100 GBO lines, targeting the enrollment of 150 patients, considering a previous success rate of 66.7% for GBO establishment.",
+  "primary_outcome": "progression-free survival: Radiologic progression time following the RANO 2.0 criteria, 12 months after surgery",
+  "inclusion": "primary or recurrent glioblastoma; patients treated with standard treatment including surgery and temozolomide based chemoradiation therapy",
+  "sites": [
+   "Chungnam National University Hospital",
+   "Soonchunhyang University Hospital",
+   "Keimyung University Hospital",
+   "Yeungnam University Hospital",
+   "Dong-A University Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT02619994",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "Delamanid, Linezolid, Levofloxacin, and Pyrazinamide for the Treatment of Patients With Fluoroquinolone-sensitive MDR-TB: A Phase 2/3, Multicenter, Randomized, Open-label, Clinical Trial",
+  "enrollment": 214,
+  "start_date": "2016-01",
+  "conditions": [
+   "Tuberculosis, Multidrug-Resistant"
+  ],
+  "brief_summary": "The purpose of this study is to compare the efficacy of a 'new treatment regimen including delamanid, linezolid, levofloxacin, and pyrazinamide for nine or twelve months (investigational arm)' and 'the standard treatment regimen including injectables for 20 to 24 months (control arm)' for treating fluoroquinolone-sensitive multidrug-resistant tuberculosis.",
+  "detailed_description": "This study is a phase II/III, multicenter, randomized, open-label clinical trial of non-inferiority design comparing a new regimen to the World Health Organization-endorsed conventional regimen for fluoroquinolone-sensitive MDR-TB. The control arm uses a conventional treatment regimen with second-line drugs including injectables for 20-24 months. The investigational arm uses a new shorter regimen including delamanid, linezolid, levofloxacin, and pyrazinamide for 9 or 12 months depending on time to sputum culture conversion. The primary outcome is the treatment success rate at 24 months after treatment initiation. The population number is calculated as 102 per group (204 in total).",
+  "primary_outcome": "Treatment Success Rate at 24 months after treatment start, tested for non-inferiority with a margin of -10%",
+  "inclusion": "Males and females aged from 19 to 85 years; Confirmed MDR-TB or RR-TB; On current TB therapy for <=14 days at the time of enrollment",
+  "sites": [
+   "Seoul National University College of Medicine",
+   "Asan Medical Center",
+   "Pusan National University Hospital",
+   "Samsung Medical Center",
+   "Severance Hospital",
+   "Korea University Ansan Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT03945565",
+  "sponsor": "Seoul National University Hospital",
+  "sponsor_ko": "서울대학교병원",
+  "title": "Effect of Intraoperative Oxygen Tension on Patient Outcomes After Off-pump Coronary Artery Bypass Grafting (the CARROT Trial)",
+  "enrollment": 414,
+  "start_date": "2019-08-01",
+  "conditions": [
+   "Coronary Artery Disease"
+  ],
+  "brief_summary": "Conventionally, a relatively high level of fraction of inspired oxygen (FiO2) has been used for secure a margin of safety in patients undergoing cardiac surgery including off-pump coronary artery bypass grafting (OPCAB). Since the potential adverse effects of hyperoxemia (via reactive oxygen species, vasocontriction, perfusion heterogeneity, myocardiac injury, etc.), various studies on this topic has been performed. However, the results are conflicting and inconsistent, and the consensus about whether the use of additional oxygen supply in cardiac surgery has not been reached among practitioners yet.",
+  "detailed_description": "A sub-study will also be conducted in part of patients of the present study. In 40 out of 500 (expected) patients, two different levels of FiO2 will be sequentially set with a 5-minute interval after the induction of general anesthesia. Mixed venous and regional cerebral oxygen saturation will then be recorded according to the change of FiO2.",
+  "primary_outcome": "hospital LOS: length of hospital stay after off-pump coronary artery bypass grafting",
+  "inclusion": "All patients scheduled for elective off-pump coronary artery bypass grafting",
+  "sites": [
+   "Seoul National University Hospital",
+   "Asan Medical Center",
+   "Severance Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT01589328",
+  "sponsor": "National Cancer Center, Korea",
+  "sponsor_ko": "국립암센터",
+  "title": "Randomized Controlled Trials for the Effect of Early Management on PAin and DEpression in Patients With PancreatoBiliary Cancer, EPADE-PB",
+  "enrollment": 288,
+  "start_date": "2012-03-15",
+  "conditions": [
+   "Pancreatic Cancer",
+   "Biliary Tract Cancer"
+  ],
+  "brief_summary": "Effect of Early management on PAin and DEpression in patients with PancreatoBiliary Cancer, EPADE-PB. To determine whether early palliative care integrated with usual oncologic care with automated symptom monitoring can improve depression and pain in patients with cancer.",
+  "detailed_description": null,
+  "primary_outcome": "Reduction in pain scores (Brief Pain Inventory severity) and reduction in depression score (Center for Epidemiological Studies-Depression Scale), measured at baseline, 1 month, and every 3 months up to 1 year",
+  "inclusion": "Pathologic confirmed locally advanced or metastatic pancreatic cancer or biliary tract cancer; within 8 weeks after diagnosis; cancer-related pain (BPI worst pain score >3), depression (CES-D >16) or both; Karnofsky Performance Rating Scale >=50%",
+  "sites": [
+   "National Cancer Center"
+  ]
+ },
+ {
+  "nct_id": "NCT01850368",
+  "sponsor": "Korea Cancer Center Hospital",
+  "sponsor_ko": "한국원자력의학원 원자력병원",
+  "title": "Multicenter Phase II Study of Stereotactic Ablative Radiotherapy for Hepatocellular Carcinoma With Major Portal Vein Invasion",
+  "enrollment": 35,
+  "start_date": "2012-10",
+  "conditions": [
+   "Hepatocellular Carcinoma",
+   "Portal Vein Tumor Thrombus"
+  ],
+  "brief_summary": "Recently, several studies reported promising outcomes of patients after external beam radiotherapy (EBRT) for hepatocellular carcinoma (HCC) with portal vein tumor thrombosis. However, conventional EBRT is composed of many fractions (20-35 fractions). On the other hand, stereotactic ablative radiotherapy is a newly emerging treatment method to deliver a high dose of radiation to the target using a few fractions with a high precision within body. SABR increases radiation biologic effect for tumor, makes patients more comfortable due to reduction of the number of hospital visit, and enables patients to receive another treatment more quickly. This study will evaluate SABR effect with 40 Gy in 4 fractions for HCC with major portal vein tumor thrombosis.",
+  "detailed_description": null,
+  "primary_outcome": "Tumor stabilization rate at 2 months, based on combined complete response, partial response, and stable disease by mRECIST criteria",
+  "inclusion": "Male or female patients >= 20 years of age; Initially diagnosed or recurrent hepatocellular carcinoma; ECOG performance status 0 or 1; HCC with major portal vein tumor thrombosis; Cirrhotic status of Child Pugh class A or B7",
+  "sites": [
+   "Korea Cancer Center Hospital",
+   "Gyeongsang National University Hospital",
+   "Keimyung University Dongsan Medical Center",
+   "Inha University Hospital",
+   "Seoul National University Hospital",
+   "Soon Chun Hyang University Hospital Seoul"
+  ]
+ },
+ {
+  "nct_id": "NCT03870698",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Comparison of Perioperative Outcomes Between Laparoscopic and Open Pylorus Preserving Pancreaticoduodenectomy in Periampullary Tumors: Randomized Controlled Study",
+  "enrollment": 252,
+  "start_date": "2019-05-09",
+  "conditions": [
+   "Periampullary Cancer",
+   "Functional Recovery"
+  ],
+  "brief_summary": "Laparoscopic surgery has not changed much in safety compared with open surgery through many existing studies, and has become a procedure to help patients' recovery. Recently, laparoscopic surgery has been actively performed for pancreaticoduodenectomy, one of the most complicated procedures in intraperitoneal surgery. The investigators will perform a prospective study to establish a higher level of evidence for the efficacy and safety of laparoscopic pancreaticoduodenectomy. The purpose of this study was to compare the short-term clinical outcomes including the functional recovery after surgery, complications and confirm that laparoscopic pancreaticoduodenectomy is safe and appropriate.",
+  "detailed_description": "Pancreatoduodenectomy is a standard procedure for periampullary disease of the duodenum and is a very extensive and complicated operation for partial resection of the pancreas, duodenum, bile duct, gallbladder and occasionally stomach. Laparoscopic surgery has been advancing rapidly with the development of the technique of laparoscopic surgery. Common advantages include postoperative pain relief, rapid recovery of bowel movements, fewer days of hospitalization, and a quick return to daily life. Recently reported meta-analysis has shown that laparoscopic Pancreatoduodenectomy has a significantly lower bleeding volume and duration of hospitalization compared to open surgery. This study was aimed to compare functional recovery between open and laparoscopic PD in 3 tertiary referral centers in Korea. The expected number of patients is 252. Based on the results of the same operation of the existing institution, the average functional recovery for open pancreaticoduodenectomy is estimated to be 14 days, and the functional recovery for laparoscopic pancreaticoduodenectomy is reduced by 20%.",
+  "primary_outcome": "Time to functional recovery after surgery: pain controlled without intravenous analgesics, free walking, free diet available, no evidence of infection, and no intravenous injection required",
+  "inclusion": "Age 19 to 80 years; ECOG performance 0-2; lesion not invaded by major blood vessels on preoperative examination; No distant metastasis; WBC at least 3,000/mm3, Platelet count at least 100,000/mm3",
+  "sites": [
+   "Asan Medical Center",
+   "Seoul National University Bundang Hospital",
+   "Severance Hospital",
+   "Samsung Medical Center",
+   "Hallym University Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT04878367",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Behavioral Interventions to Reduce Particulate Matter Exposure in Patients With COPD",
+  "enrollment": 120,
+  "start_date": "2021-06-01",
+  "conditions": [
+   "COPD"
+  ],
+  "brief_summary": "It is a prospective, multi-institutional clinical study and targets patients diagnosed with chronic obstructive pulmonary disease. About 120 subjects (35 at Ilsan Paik Hospital, 35 at Severance Hospital, and 50 at Asan Medical Center in Seoul) will be subject to a random allocation of 1:1. The arbitration group implements living rules for responding to fine dust, supports air purifiers, and only general guidance is implemented in the non-property group. Patients are recruited for 12 months. During outpatient visits, lung function tests and airway resistance tests shall be conducted.",
+  "detailed_description": "A total of 120 COPD patients will be recruited from three institutions: Asan Medical Center, Severance Hospital, and Ilsan Paik Hospital. A panel of COPD patients is established to conduct prospective studies, and measures to mediate recurrence and deterioration of adult chronic respiratory diseases due to exposure to fine dust are presented. In addition, a fine dust measurement researcher visits each household to measure indoor fine dust concentration. The measurement method of fine dust concentration will be using the process test method, IoT-based sensors, and direct-to-read measuring devices. We collect sputum at every visit and blood at the last visit.",
+  "primary_outcome": "SGRQ-C and CAT quality of life scores at 12 months",
+  "inclusion": "40 years of age or older; Lung function test results show FEV1/FVC<0.7, FEV1 <80% of predicted",
+  "sites": [
+   "Asan Medical Center",
+   "Severance Hospital",
+   "Ilsan Paik Hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT01202448",
+  "sponsor": "Samsung Medical Center",
+  "sponsor_ko": "삼성서울병원",
+  "title": "Prospective Cohort Study With Risk-adapted Central Nervous System Evaluation in Diffuse Large B-cell Lymphoma",
+  "enrollment": 600,
+  "start_date": "2010-08",
+  "conditions": [
+   "Diffuse Large B-cell Lymphoma"
+  ],
+  "brief_summary": "This study is to evaluate the incidence of central nervous system (CNS) relapse or metastasis in patients with diffuse large B-cell lymphoma.",
+  "detailed_description": "We dichotomize patients according to the risk of CNS involvement. Then, we perform CNS evaluation in patients at risk of CNS involvement. We prospectively monitor whether CNS relapse or metastasis occurs in patients with diffuse large B-cell lymphoma.",
+  "primary_outcome": "CNS relapse/involvement monitored up to 2 years after participants are enrolled",
+  "inclusion": "Newly diagnosed patients with diffuse large B cell lymphoma; older than 20 years; life expectancy more than 6 months; Written informed consent",
+  "sites": [
+   "Samsung Medical Center",
+   "Asan Medical Center",
+   "Yonsei University",
+   "National Cancer Center Korea",
+   "Korea Cancer Center Hospital",
+   "Korea University"
+  ]
+ },
+ {
+  "nct_id": "NCT01385111",
+  "sponsor": "National Cancer Center, Korea",
+  "sponsor_ko": "국립암센터",
+  "title": "Combined Application of EBUS-TBNA and EUS-B-FNA in Mediastinal Staging of Lung Cancer; EBUS-TBNA Centered Procedure vs. EUS-B-FNA Centered Procedure, a Randomized Study",
+  "enrollment": 162,
+  "start_date": "2011-06",
+  "conditions": [
+   "Non Small Cell Lung Cancer"
+  ],
+  "brief_summary": "This study aims to investigate a diagnostic yield and performance characteristics according to the order of endobronchial ultrasound guided transbronchial needle aspiration (EBUS-TBNA) and endoscopic ultrasound-with bronchoscope-guided transbronchial needle aspiration (EUS-B-FNA) in the mediastinal staging of potentially operable lung cancer. EUS-FNA is a better tolerated procedure than EBUS-TBNA. In group A, the investigators perform EBUS-TBNA first and EUS-B-FNA is performed when necessary. In group B, EUS-B-FNA is first applied and EBUS-TBNA is performed when necessary. The hypothesis is that the diagnostic yield of the EUS centered procedure is as good as that of the EBUS centered procedure and the EUS centered procedure is more tolerable.",
+  "detailed_description": null,
+  "primary_outcome": "Diagnostic accuracy, assessed when confirmative diagnosis is available in all subjects after surgery (8-12 months)",
+  "inclusion": "Histologically confirmed or strongly suspected non-small cell lung cancer; Potentially operable patients",
+  "sites": [
+   "National Cancer Center Korea"
+  ]
+ },
+ {
+  "nct_id": "NCT01392365",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Development of a Prediction Model for Differential Diagnosis Between Intestinal Tuberculosis and Crohn's Disease",
+  "enrollment": 117,
+  "start_date": "2011-07",
+  "conditions": [
+   "Crohn's Disease",
+   "Intestinal Tuberculosis"
+  ],
+  "brief_summary": "The aim of this study is to develop a scoring system and a prediction model for differential diagnosis between intestinal tuberculosis and Crohn's disease.",
+  "detailed_description": "Crohn's disease and intestinal tuberculosis mimic each other in clinical, endoscopic, and histological features. In addition, the yield of microbiological/histological test (AFB stain, caseating granuloma) is not high in clinical setting. Therefore, distinguishing CD from ITB especially in highly endemic areas for TB is challenging. The aim of this study is to develop and to validate a scoring system and a prediction model for differential diagnosis between intestinal tuberculosis and Crohn's disease.",
+  "primary_outcome": "Final diagnosis (Intestinal tuberculosis or Crohn's disease) at 6 months; a prediction model using various variables will be constructed in the development group and validated in the validation group",
+  "inclusion": "Patients with suspected diagnosis of intestinal tuberculosis or Crohn's disease; age older than 15 years; no previous history of anti-TB drugs, immunosuppressive drugs, or chemotherapeutic agents",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT03266419",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "A Double-blind, Randomized, Parallel Design to Compare the Effectiveness of Deep Versus Moderate Neuromuscular Blockade With Standard-pressure Pneumoperitoneum During Laparoscopic Gastrectomy on Postoperative Pain in Surgical Patients",
+  "enrollment": 100,
+  "start_date": "2018-03-28",
+  "conditions": [
+   "Neuromuscular Blockade"
+  ],
+  "brief_summary": "The aim of this study is to evaluate the influence of depth of neuromuscular blockade during laparoscopic gastrectomy on postoperative pain in surgical patients allocated randomly to either deep or moderate neuromuscular blockade group with standard-pressure pneumoperitoneum of 13 mmHg.",
+  "detailed_description": "All patients were fasted from midnight without premedication. Anesthesia was induced with propofol and remifentanil using a target effect-site concentration-controlled infusion pump. Tracheal intubation was facilitated with rocuronium 0.6 mg/kg. For deep NMB group, an intravenous bolus of rocuronium 0.7 mg/kg was given 2 minutes after intubation, followed by a continuous infusion of rocuronium of 0.8-1.2 mg/kg/h for maintaining deep NMB (post tetanic count 1-2) during operation. For moderate NMB group, no further loading dose of rocuronium was given; an intravenous infusion with rocuronium 0.2-0.6 mg/kg/h was started at a TOF count of 1 for maintaining moderate NMB during operation. An abdominal pressure of 13 mmHg was maintained during the laparoscopic surgery. After the end of surgery, a single intravenous bolus dose of sugammadex 2 or 4 mg/kg was administered for reversal of moderate and deep NMB, respectively.",
+  "primary_outcome": "Minimum Effective Analgesic Dose (MEAD) of Oxycodone at Postoperative Care Unit, determined when VAS pain intensity decreased to <3 at rest and <5 on wound compression",
+  "inclusion": "Patients 20 to 65 years old; ASA Physical Status 1, 2 or 3; Patients undergoing laparoscopic gastrectomy; signed written informed consent",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT02979223",
+  "sponsor": "National Cancer Center, Korea",
+  "sponsor_ko": "국립암센터",
+  "title": "Comparison the Efficacy Depending on the Order of the Sequential Combination Method Using Sodium Picosulfate and Magnesium Citrate (PMC) and PEG With Ascorbic Acid for Bowel Preparation",
+  "enrollment": 142,
+  "start_date": "2016-11",
+  "conditions": [
+   "Bowel Preparation"
+  ],
+  "brief_summary": "The aim of this study is to compare the efficacy depending on the order of the sequential combination method using sodium picosulfate and magnesium citrate (PMC) and PEG with ascorbic acid for bowel preparation. The investigators designed this study as a phase II prospective randomized parallel arm clinical trial. 71 participants will be enrolled in each group (142 in total). The primary outcome is the efficacy of bowel preparation. Secondary outcomes are tolerability, side effect of the drugs, polyp detection rate and adenoma detection rate.",
+  "detailed_description": null,
+  "primary_outcome": "Successful bowel preparation (Excellent and Good in Aronchick bowel preparation score) during colonoscopy",
+  "inclusion": "Age 20-75; Patients who visited the outpatient clinic for colonoscopy; Patients who agreed to participate in this study",
+  "sites": [
+   "National Cancer Center Korea"
+  ]
+ },
+ {
+  "nct_id": "NCT05316181",
+  "sponsor": "National Cancer Center, Korea",
+  "sponsor_ko": "국립암센터",
+  "title": "Randomized Phase III Trial of Cytoreductive Surgery (CRS) and Hyperthermic Intraperitoneal Chemotherapy (HIPEC) for Platinum-Resistant Recurrent Ovarian Cancer: KOV-02R - Resistant Cancer of Ovary (RECOVER)",
+  "enrollment": 140,
+  "start_date": "2022-04-07",
+  "conditions": [
+   "Epithelial Ovarian Cancer",
+   "Platinum Resistant"
+  ],
+  "brief_summary": "Platinum-resistant recurrent epithelial ovarian cancer randomizing with or without cytoreductive surgery + hyperthermic intraperitoneal chemotherapy (HIPEC): KOV-02R, RECOVER",
+  "detailed_description": "The objective of this trial (KOV-HIPEC-02R) is to prove the survival benefit of HIPEC with doxorubicin and mitomycin (trial arm) compared to physician-choice chemotherapy (control arm) in patients with platinum-resistant recurrent epithelial ovarian cancer.",
+  "primary_outcome": "Progression-free survival (PFS) from randomization to time of first progression or death from any cause, assessed up to 5 years",
+  "inclusion": "Patients >=18 years old; ECOG Performance status 0-2; histologically confirmed epithelial ovarian cancer, fallopian tube cancer, or primary peritoneal cancer; Resistant to platinum-based chemotherapy; Resectable intraperitoneal disease; life expectancy > 3 months",
+  "sites": [
+   "National Cancer Center Korea",
+   "Ewha Womans University Mokdong Hospital",
+   "Korea University Anam hospital"
+  ]
+ },
+ {
+  "nct_id": "NCT00908726",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Population Pharmacokinetic and Pharmacodynamic Modeling of Microemulsion Propofol in Healthy Volunteers: Comparison With Lipid Emulsion Propofol",
+  "enrollment": 63,
+  "start_date": "2009-05",
+  "conditions": [
+   "Healthy"
+  ],
+  "brief_summary": "Aquafol (Daewon Pharmaceutical Co., Ltd., Seoul, Korea) is a microemulsion propofol that has been developed for eliminating lipid solvent-related adverse events of long chain triglyceride emulsion propofol, such as infection, fat embolism, hypertriglyceridemia and pancreatitis. Originally, Aquafol was formulated with 8% polyethylene glycol 660 hydroxystearate and 5% tetrahydrofurfuryl alcohol polyethylene glycol ether. A phase 1 study to assess the safety and tolerability of polymeric vehicles of this formulation in healthy volunteers showed dose-limiting toxicity. Subsequently, it was reformulated with 10% purified poloxamer 188. The aim of this study was to compare the pharmacokinetics and pharmacodynamics of propofol microemulsion and lipid emulsion, using noncompartmental analysis and population analysis with mixed effects modeling.",
+  "detailed_description": "The subjects fasted for 6 h before study drug administration. An 18-gauge angiocatheter was placed in a vein of the antecubital area. A second angiocatheter was placed in the contralateral radial artery for frequent blood sampling. The subjects were stratified into three age groups (19-40, 41-64, and > 65 yr), and each group included 10 male and 10 female volunteers. Each subject received both propofol formulations in a crossover fashion separated by a 7-day washout period, and the order of the drug administration was randomized. Subjects received both propofol formulations during 60 min. The infusion rate was assigned according to a nonblinded, randomized design to 1.5, 3, 6, or 12 mg/kg/hr. Arterial blood samples were taken at preset intervals up to 150 min after administration of propofol.",
+  "primary_outcome": "Comparison of the pharmacokinetics and pharmacodynamics of microemulsion and lipid emulsion propofol",
+  "inclusion": "ASA 1 or 2 healthy volunteers; age >= 19 yr",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT06287008",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "A Comparative Study on Outcomes of ABO-Incompatible Kidney Transplants Between Robot-Assisted vs. Open Surgery: A Retrospective Cohort Study",
+  "enrollment": 239,
+  "start_date": "2020-10-01",
+  "conditions": [
+   "Kidney Transplantation"
+  ],
+  "brief_summary": "While robot-assisted kidney transplantation (RAKT) offers potential benefits such as minimal postoperative pain, better cosmesis, fewer wound infections, and shorter hospital stay, its efficacy in ABO-incompatible (ABO-i) KT compared to open KT (OKT) remains understudied. This study aims to compare ABO-i KT outcomes between RAKT and OKT. The study utilized data from 29 ABO-i RAKT and 210 ABO-i OKT cases performed at Asan Medical Center from October 2020 to February 2023. Univariate and multivariate analyses were performed to evaluate factors associated with a composite of biopsy-proven acute rejection, de novo donor-specific antibodies, and overall graft failure.",
+  "detailed_description": null,
+  "primary_outcome": "Graft survival and renal function measured in terms of eGFR at 1 year post-operative",
+  "inclusion": "Patient eligible for living donor ABO incompatible kidney transplantation; IsoAgglutinin immunoglobulin G titer between 1/8 and 1/128 before operation; Patient older than 18 years and younger than 80 years",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ },
+ {
+  "nct_id": "NCT01691118",
+  "sponsor": "Asan Medical Center",
+  "sponsor_ko": "서울아산병원",
+  "title": "Fimasartan for Improvement of Diastolic Dysfunction in Hypertensive Patients (FINE)",
+  "enrollment": 60,
+  "start_date": "2012-09",
+  "conditions": [
+   "Hypertension"
+  ],
+  "brief_summary": "Approximately half of hypertensive patients have diastolic dysfunction and diastolic dysfunction is associated with development of congestive heart failure and increased mortality. Although diastolic heart failure associated with hypertension is a clinically significant problem, few clinical trials have been conducted and there is no proven pharmacological therapy to improve outcomes. The investigators hypothesize that fimasartan added to standard therapy will be superior to placebo in improving diastolic dysfunction in mildly symptomatic patients with hypertension and diastolic dysfunction, and try to examine this hypothesis in a double-blind, randomized comparison study using echocardiography.",
+  "detailed_description": "The Framingham study reported that 51% of patients with HF have a preserved left ventricular ejection fraction and hypertension is the strongest risk factor for HF with preserved ejection fraction, also termed diastolic heart failure. Hypertensive patients are at increased risk of developing LV hypertrophy and myocardial fibrosis, which cause relaxation abnormality and decreased compliance of LV with a rise in the LV diastolic pressure. Because the activation of renin-angiotensin-aldosterone system has been shown to induce LV hypertrophy and myocardial fibrosis, the RAAS may play a central role in the pathogenic process from hypertension to diastolic HF. The largest clinical trial, I-PRESERVE, recently reported that treatment with irbesartan did not reduce the risk of death or hospitalization for cardiovascular causes among 4,128 patients. Fimasartan is the first ARB developed in Korea, and was felt to be particularly appropriate for examining the hypothesis that the ARB can improve diastolic dysfunction associated with hypertension.",
+  "primary_outcome": "Change in E/E' ratio, the ratio of Early mitral inflow velocity to Early mitral annular velocity, from baseline to 10 months follow-up",
+  "inclusion": "Untreated hypertension with systolic BP >= 140 or diastolic BP >= 90 mmHg or treated hypertension; Current heart failure symptoms with NYHA class II; Evidence of diastolic dysfunction showing any 2 of: E/E' > 10, LV posterior wall thickness > 11 mm, BNP level > 40 pg/mL",
+  "sites": [
+   "Asan Medical Center"
+  ]
+ }
+]
