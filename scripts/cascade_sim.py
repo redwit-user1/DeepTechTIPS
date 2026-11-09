@@ -23,12 +23,12 @@ from compliance_gateway.vcr.hallucination import unit_swaps
 SETS = ("kr_psg_eval", "kr_hard_eval")
 
 
-def load(scores: Path, enc: str) -> list[dict]:
+def load(scores: Path, enc: str, llm: str = "qwen") -> list[dict]:
     rows = []
     for s in SETS:
         src = {r["id"]: r for r in map(json.loads, open(f"data/labeling/{s}.jsonl", encoding="utf-8"))}
         e = {r["id"]: r["score"] for r in map(json.loads, open(scores / f"{s}_{enc}.jsonl", encoding="utf-8"))}
-        q = {r["id"]: r["score"] for r in map(json.loads, open(scores / f"{s}_qwen.jsonl", encoding="utf-8"))}
+        q = {r["id"]: r["score"] for r in map(json.loads, open(scores / f"{s}_{llm}.jsonl", encoding="utf-8"))}
         for i, r in src.items():
             rows.append({"set": s, "doc": r["doc"], "kind": r["kind"], "y": r["label"] != "entail",
                          "rule": bool(unit_swaps(r["hypothesis"], r["premise"])), "e": e[i], "q": q[i]})
@@ -83,8 +83,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scores", type=Path, required=True)
     ap.add_argument("--enc", default="klue")
+    ap.add_argument("--llm", default="qwen", help="LLM 점수 파일 태그(qwen=v1 프롬프트, qwen2=v2)")
     a = ap.parse_args()
-    rows = load(a.scores, a.enc)
+    rows = load(a.scores, a.enc, a.llm)
     docs = sorted({r["doc"] for r in rows})
     fold = {d: i % 2 for i, d in enumerate(docs)}
     for mode, rule in (("enc", False), ("enc", True), ("llm", False), ("llm", True), ("cascade", True)):

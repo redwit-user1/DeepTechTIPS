@@ -51,3 +51,39 @@ def test_audit_hash_is_deterministic():
     a = gw.evaluate(_req(GOOD)).audit_hash
     b = gw.evaluate(_req(GOOD)).audit_hash
     assert a == b
+
+
+def test_sentence_gating_blocks_unsupported_sentence():
+    # VCR 은 인용 문장만 본다. 원문을 옮긴 보고서 문장은 05 단계 문장 게이팅으로만 검증된다.
+    from compliance_gateway.models import GatewayDecision, GenerationRequest
+    from compliance_gateway.pipeline import ComplianceGateway
+
+    src = "IC 분석 결과 운전유속 5 m/h 에서 Br 제거율이 98 % 이상으로 확인되었음."
+    fake = lambda p, h: 0.9 if "98" in h else 0.02          # 98 을 말하면 뒷받침
+    gw = ComplianceGateway(vcr_threshold=0.0, nli_fn=fake, sentence_threshold=0.1)
+    ok = gw.evaluate(GenerationRequest(query="q", response="운전유속 5 m/h 에서 Br 제거율은 98 % 이상이었다.",
+                                       grounding=(src,)))
+    bad = gw.evaluate(GenerationRequest(query="q", response="운전유속 5 m/h 에서 Br 제거율은 75 % 수준이었다.",
+                                        grounding=(src,)), regenerations=3)
+    assert ok.decision is GatewayDecision.PASS
+    assert bad.decision is GatewayDecision.BLOCK
+    gating = next(r for r in bad.reports if r.stage == "nli_gating")
+    assert gating.detail["unsupported_sentences"][0]["score"] == 0.02
+    # 게이팅 미설정이면 기존 동작(문장 검사 없음)
+    off = ComplianceGateway(vcr_threshold=0.0, nli_fn=fake).evaluate(
+        GenerationRequest(query="q", response="Br 제거율은 75 % 수준이었다.", grounding=(src,)))
+    assert off.decision is GatewayDecision.PASS
+
+
+def test_cascade_routes_only_ambiguous_to_llm():
+    from compliance_gateway.nli.cascade import CascadeNLI
+
+    enc = lambda p, h: {"a": 0.001, "b": 0.5, "c": 0.95}[h[0]]
+    llm_calls = []
+    llm = lambda p, h: (llm_calls.append(h), 0.7)[1]
+    c = CascadeNLI(enc, llm)
+    assert c("근거", "a 문장") == 0.001        # 인코더가 확신(위반)
+    assert c("근거", "c 문장") == 0.95         # 인코더가 확신(통과)
+    assert c("근거", "b 문장") == 0.7          # 애매 → LLM
+    assert c("10 ug 투여", "b 10 mg 투여") == 0.0   # 단위 바꿈은 규칙이 먼저 잡는다
+    assert llm_calls == ["b 문장"] and c.llm_calls == 1

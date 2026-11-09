@@ -111,3 +111,13 @@ def test_sensitive_and_gate_selfcheck():
     from compliance_gateway.data.ocr import gate, sensitive
     sensitive._demo()
     gate._demo()
+
+
+def test_deidentify_names_next_to_titles():
+    # 직함·호칭 앞뒤 실명(표본 2만 행에 838건 잔존했다) — 기관명·일반어는 건드리지 않는다
+    from compliance_gateway.data.ocr.deidentify import deidentify
+    for t in ("홍길동 변리사가 검토함", "변리사 홍길동 의견", "책임연구원 이수진 확인", "장혜식 교수님", "이영희 씨 요청"):
+        assert deidentify(t).text != t, t
+    for t in ("참여 연구원 3명", "선임연구원이 확인", "한국화학연구원 협력", "대표 이사의 승인",
+              "연구소장 승인", "원장님 결재", "고객님의 요청", "공동대표자"):
+        assert deidentify(t).text == t, t

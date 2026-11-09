@@ -154,5 +154,7 @@ def halluc(
     if ab is None:
         ab = _type_a_b(citations, grounding, doi_resolver)
     c = _type_c(text, grounding)
+    if grounding and unit_swaps(text, " ".join(grounding)):
+        c = 1.0                      # 값은 같고 단위만 바뀐 수치 — 유형 C
     # 두 신호의 최댓값(보수적): 한 유형이라도 강하게 탐지되면 높은 환각.
     return max(ab, c)

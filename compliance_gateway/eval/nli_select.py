@@ -22,6 +22,10 @@ def select_nli(
         if not endpoint_model:
             raise SystemExit("--nli-endpoint 사용 시 --nli-model 로 모델 ID 를 지정하세요.")
         return ServedNLI(endpoint, endpoint_model), f"served({endpoint_model})"
+    if nli_model in ("cascade", "cascade-noLLM"):
+        from compliance_gateway.nli.cascade import CascadeNLI
+
+        return CascadeNLI.default(device, llm=nli_model == "cascade"), nli_model
     if nli_model:
         from compliance_gateway.nli.transformer import TransformerNLI
 

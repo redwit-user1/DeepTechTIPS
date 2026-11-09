@@ -39,6 +39,11 @@ class ComplianceGateway:
         임계값 미달 시 자동 재생성 최대 횟수.
     nli_fn / doi_resolver:
         외부 어댑터(미주입 시 휴리스틱).
+    sentence_threshold:
+        주면 05 단계에서 **응답의 모든 문장**을 근거와 대조한다(인용 유무 무관).
+        근거가 뒷받침하지 않는 문장(점수 < 임계값)이 하나라도 있으면 통과시키지 않는다.
+        VCR 은 인용이 달린 문장만 보므로, 원문을 옮겨 쓴 보고서 문장은 이 단계로만 검증된다.
+        `CascadeNLI` 와 함께 쓸 때 `CascadeNLI.THRESHOLD`(0.1).
     """
 
     def __init__(
@@ -48,8 +53,10 @@ class ComplianceGateway:
         nli_fn: Optional[NLIFn] = None,
         doi_resolver: Optional[DOIResolver] = None,
         verifier=None,
+        sentence_threshold: Optional[float] = None,
     ) -> None:
         self.vcr_threshold = vcr_threshold
+        self.sentence_threshold = sentence_threshold
         self.max_regenerations = max_regenerations
         # 기본 NLI 백엔드 = 통계적 v0.5(극성 처리). 운영 환경에서는
         # TransformerNLI 를 주입해 교체한다(HF/온프레미스 모델).
@@ -85,19 +92,38 @@ class ComplianceGateway:
         )
 
     # ---- 07 블록체인 감사추적 (해시 생성) ------------------------------
-    def _audit_hash(self, req: GenerationRequest, vcr: VCRBreakdown) -> str:
-        """감사로그 해시. 실제 배포에서는 GOONO 시점인증(허가형 블록체인)에 기록."""
+    def _audit_hash(self, req: GenerationRequest, vcr: VCRBreakdown,
+                    unsupported: Optional[list] = None) -> str:
+        """감사로그 해시. 실제 배포에서는 GOONO 시점인증(허가형 블록체인)에 기록.
+
+        문장 게이팅을 켰으면 그 판정 근거(뒷받침 안 된 문장·점수)도 불변 기록에 넣는다.
+        """
         payload = {
             "model_id": req.model_id,
             "query": req.query,
             "response": req.response,
             "vcr": vcr.as_dict(),
         }
+        if unsupported is not None:
+            payload["unsupported_sentences"] = unsupported
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         return hashlib.sha256(blob).hexdigest()
 
-    def _decide(self, vcr: float, regenerations: int) -> GatewayDecision:
-        if vcr >= self.vcr_threshold:
+    def _unsupported_sentences(self, req: GenerationRequest) -> list[dict]:
+        """근거가 뒷받침하지 않는 응답 문장과 점수. 임계값 미설정·근거 없음이면 검사하지 않는다."""
+        if self.sentence_threshold is None or not req.grounding:
+            return []
+        from compliance_gateway.data.ocr.claim_evidence import sentences
+
+        out = []
+        for sent in sentences(req.response) or [req.response]:
+            score = max(self.nli_fn(g, sent) for g in req.grounding)
+            if score < self.sentence_threshold:
+                out.append({"sentence": sent, "score": round(float(score), 4)})
+        return out
+
+    def _decide(self, vcr: float, regenerations: int, sentences_ok: bool = True) -> GatewayDecision:
+        if vcr >= self.vcr_threshold and sentences_ok:
             return GatewayDecision.PASS
         if regenerations < self.max_regenerations:
             return GatewayDecision.REGENERATE
@@ -115,11 +141,13 @@ class ComplianceGateway:
         reports.append(sb_report)
 
         vcr = self._score(req, citations)
+        unsupported = self._unsupported_sentences(req)
         reports.append(
             StageReport(
                 stage="nli_gating",
-                ok=vcr.vcr >= self.vcr_threshold,
-                detail={"vcr": vcr.vcr, "threshold": self.vcr_threshold, "halluc": vcr.halluc},
+                ok=vcr.vcr >= self.vcr_threshold and not unsupported,
+                detail={"vcr": vcr.vcr, "threshold": self.vcr_threshold, "halluc": vcr.halluc,
+                        "unsupported_sentences": unsupported},
             )
         )
         reports.append(
@@ -130,8 +158,9 @@ class ComplianceGateway:
             )
         )
 
-        decision = self._decide(vcr.vcr, regenerations)
-        audit_hash = self._audit_hash(req, vcr)
+        decision = self._decide(vcr.vcr, regenerations, sentences_ok=not unsupported)
+        audit_hash = self._audit_hash(
+            req, vcr, unsupported if self.sentence_threshold is not None else None)
         reports.append(
             StageReport(stage="audit_trail", ok=True, detail={"audit_hash": audit_hash})
         )
