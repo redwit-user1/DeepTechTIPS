@@ -120,7 +120,7 @@ python -m compliance_gateway.eval.korean --real \
 | 자원 | 상태 | 전략 |
 |---|---|---|
 | H100 80GB × 2 | 6개월 | GPU0=생성(vLLM) / GPU1=학습. FP8 RL 가능 |
-| 베이스 모델 | HF 접근 ✅ | EXAONE 3.5 7.8B 우선, Qwen2.5 7B 대조 |
+| 베이스 모델 | HF 접근 ✅ | Qwen3.8-27B (Apache 2.0), 경량 Qwen3.5-9B |
 | GOONO 데이터 | 일부만 | 합성 파이프라인(bioRxiv) 대폭 확대로 보완 |
 | KPI 평가 | 스캐폴드 완료 | 학습 전/후 동일 코드로 측정 → 개선 증명 |
 
@@ -148,7 +148,7 @@ python -m compliance_gateway.eval.korean --real \
 ### M2–3 (2개월) — Compliance-Aligned SLM
 - [ ] 데이터: 합성 DPO 수만 + GOONO 일부 → SFT/DPO 데이터셋 빌드
       `python -m compliance_gateway.train.data_format` (SFT/DPO 변환)
-- [ ] SFT: `python -m compliance_gateway.train.sft --base exaone`
+- [ ] SFT: `python -m compliance_gateway.train.sft --base qwen`
 - [ ] DPO: `python -m compliance_gateway.train.dpo --sft-adapter checkpoints/sft --vcr-accept 0.7`
 - [ ] 목표: VCR 0.60 기준선, 규정위반 탐지·보고서 정확도 KPI 1차 달성
 
@@ -179,8 +179,8 @@ python -m compliance_gateway.eval.kpi           # 트랜스포머 NLI 주입 후
 
 # 2) 데이터 빌드 → SLM SFT → DPO (M2-3)
 python -m compliance_gateway.data.build_dpo     # 합성 DPO/SFT 생성
-python -m compliance_gateway.train.sft  --base exaone --dataset data/synth/sft.jsonl
-python -m compliance_gateway.train.dpo  --base exaone --sft-adapter checkpoints/sft --vcr-accept 0.7
+python -m compliance_gateway.train.sft  --base qwen --dataset data/synth/sft.jsonl
+python -m compliance_gateway.train.dpo  --base qwen --sft-adapter checkpoints/sft --vcr-accept 0.7
 ```
 
 ## 리스크

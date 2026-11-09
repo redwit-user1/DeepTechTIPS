@@ -27,15 +27,39 @@ from compliance_gateway.train.config import NLIFinetuneConfig
 LABEL2ID = {"SUPPORT": 0, "CONTRADICT": 1}
 ID2LABEL = {0: "entailment", 1: "contradiction"}
 
-# 3분류(실험): MNLI 헤드를 유지하고 NEI(인용됐으나 근거 아닌 초록 앞 2문장)를 neutral 로 학습.
-# "2분류는 neutral 을 잃어 오귀속을 못 잡는다"는 가설로 넣었으나 **실측에서 기각**됐다
-# (2026-11-09, DeBERTa-v3-large, H200): SciFact dev F1 2분류 92.9% / 3분류 91.0%,
-# 한국어 레코드포함 AUC 2분류 0.898 / 3분류 0.781. 기본은 2분류.
+# 3분류(기본): MNLI 헤드를 유지하고 NEI(인용됐으나 근거 아닌 초록 앞 2문장)를 neutral 로 학습.
+# 평가셋마다 결론이 갈렸다(2026-11-09, DeBERTa-v3-large, H200):
+#   SciFact dev F1            2분류 92.9 / 3분류 91.0
+#   한국어 레코드포함 AUC       2분류 0.898 / 3분류 0.781
+#   **한국어 연구노트 평가셋**   2분류 F1 82.4 / 3분류 87.9  ← 제품 상황(원문→보고서 문장)에 가장 가깝다
+# 2분류는 "원문에 없는 내용을 덧붙인 문장"을 평균 0.972 로 통과시킨다. 그래서 3분류를 기본으로 둔다.
+# 다만 둘 다 zero-shot 다국어 NLI·KLUE 파인튜닝(F1 96.4)보다 낮다 — SciFact 학습 자체를 권하지 않는다.
 TO_NLI = {"SUPPORT": "entailment", "NEI": "neutral", "CONTRADICT": "contradiction"}
 
 
-def prepare_examples(split: str, data_dir=None, include_nei: bool = False) -> list:
-    """SciFact → (premise=근거, hypothesis=주장, label) 목록."""
+KLUE_URL = "https://huggingface.co/api/datasets/klue/klue/parquet/nli/{split}/0.parquet"
+KLUE_LABELS = ("SUPPORT", "NEI", "CONTRADICT")   # klue ClassLabel: entailment, neutral, contradiction
+
+
+def load_klue(split: str) -> list:
+    """KLUE-NLI(원어민 작성 한국어, CC BY-SA 4.0) → NLIExample. split: train | validation."""
+    import io
+    import urllib.request
+
+    import pandas as pd
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    with urllib.request.urlopen(KLUE_URL.format(split=split), timeout=120) as r:
+        df = pd.read_parquet(io.BytesIO(r.read()))
+    return [NLIExample(claim=h, evidence=p, label=KLUE_LABELS[int(l)], claim_id=i, doc_id=-1)
+            for i, (p, h, l) in enumerate(zip(df["premise"], df["hypothesis"], df["label"])) if int(l) >= 0]
+
+
+def prepare_examples(split: str, data_dir=None, include_nei: bool = False, data: str = "scifact") -> list:
+    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue."""
+    if data == "klue":
+        return load_klue({"train": "train", "dev": "validation"}.get(split, split))
     from compliance_gateway.eval.scifact import load_scifact
 
     return load_scifact(split=split, data_dir=data_dir, include_nei=include_nei)
@@ -44,8 +68,8 @@ def prepare_examples(split: str, data_dir=None, include_nei: bool = False) -> li
 def dry_run(cfg: NLIFinetuneConfig) -> dict:
     """GPU 없이 데이터·설정을 검증한다(A100 에서 첫 실행 실패 방지)."""
     nei = cfg.num_labels == 3
-    train = prepare_examples(cfg.train_split, include_nei=nei)
-    dev = prepare_examples(cfg.eval_split, include_nei=nei) if cfg.eval_split else []
+    train = prepare_examples(cfg.train_split, include_nei=nei, data=cfg.data)
+    dev = prepare_examples(cfg.eval_split, include_nei=nei, data=cfg.data) if cfg.eval_split else []
     counts = {"SUPPORT": 0, "CONTRADICT": 0}
     for e in train:
         counts[e.label] = counts.get(e.label, 0) + 1
@@ -96,7 +120,7 @@ def run(cfg: NLIFinetuneConfig) -> None:
     ent = lab["SUPPORT"]
 
     def to_dataset(split: str) -> Optional[Dataset]:
-        examples = prepare_examples(split, include_nei=nei)
+        examples = prepare_examples(split, include_nei=nei, data=cfg.data)
         if not examples:
             return None
         ds = Dataset.from_dict({
@@ -165,10 +189,12 @@ def main() -> None:
     ap.add_argument("--split", default="train")
     ap.add_argument("--eval-split", default="dev")
     ap.add_argument("--dry-run", action="store_true", help="GPU 없이 데이터·설정 검증")
-    ap.add_argument("--labels", type=int, choices=(2, 3), default=2,
-                    help="2=SUPPORT/CONTRADICT(기본, 실측 우위), 3=NLI 헤드 유지+NEI(실험)")
+    ap.add_argument("--labels", type=int, choices=(2, 3), default=3,
+                    help="3=NLI 헤드 유지+NEI(기본), 2=SUPPORT/CONTRADICT(덧붙인 주장을 못 잡음)")
+    ap.add_argument("--data", choices=("scifact", "klue"), default="scifact",
+                    help="klue = KLUE-NLI 한국어(3분류 필요: --labels 3)")
     a = ap.parse_args()
-    cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output,
+    cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output, data=a.data,
                             train_split=a.split, eval_split=a.eval_split, num_labels=a.labels)
     if a.dry_run:
         report = dry_run(cfg)

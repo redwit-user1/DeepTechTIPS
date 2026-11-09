@@ -13,11 +13,11 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-# 베이스 모델 후보 (모두 Apache-2.0, HF 배포). 사업계획서 p.16 기준.
+# 베이스 모델 (2026-11 기준 최신, **모두 Apache-2.0** — HF cardData 로 확인).
+# EXAONE 3.5 는 비상업 라이선스·구세대라 제외(연구노트 2026-11-09 정정 19).
 BASE_MODELS = {
-    "exaone": "LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct",   # 한국어 R&D 최적(우선)
-    "qwen": "Qwen/Qwen2.5-7B-Instruct",                 # 수학·코드 강점, RLVR 실적
-    "gemma": "google/gemma-2-9b-it",                    # 커뮤니티 풍부
+    "qwen": "Qwen/Qwen3.8-27B",        # 2026-08, dense 27.8B. H200 bf16 그대로, 4-bit ≈15GB → RTX 4090 온프레미스 가능
+    "qwen-small": "Qwen/Qwen3.5-9B",   # 2026-02, 9.7B. 경량 배포·빠른 실험
 }
 
 # GPU 프로파일 — 환경에 맞춰 배치·정밀도 기본값을 잡는다.
@@ -53,7 +53,7 @@ class LoRAConfig:
 
 @dataclass
 class SFTConfig:
-    base_model: str = "exaone"
+    base_model: str = "qwen"
     dataset_path: str = "data/synth/sft.jsonl"
     output_dir: str = "checkpoints/sft"
     gpu: str = DEFAULT_GPU
@@ -75,7 +75,7 @@ class SFTConfig:
 
 @dataclass
 class DPOConfig:
-    base_model: str = "exaone"
+    base_model: str = "qwen"
     sft_adapter: str = "checkpoints/sft"       # SFT LoRA 어댑터 경로
     dataset_path: str = "data/synth/dpo_pairs.jsonl"
     output_dir: str = "checkpoints/dpo"
@@ -105,7 +105,7 @@ class GRPOConfig:
     따른다 — 사업계획서의 'N=8 샘플링'과도 일치. → docs/UPSTREAM_TECH.md
     """
 
-    base_model: str = "exaone"
+    base_model: str = "qwen"
     dpo_adapter: str = "checkpoints/dpo"
     output_dir: str = "checkpoints/grpo"
     num_generations: int = 8                   # 질의당 N=8 (안정적 어드밴티지 최소값)
@@ -141,7 +141,8 @@ class NLIFinetuneConfig:
     epochs: int = 3
     lr: float = 2e-5
     per_device_batch_size: int = 16
-    num_labels: int = 2                        # 3 = NLI 헤드 유지 + NEI 학습(실험, 실측 열위)
+    num_labels: int = 3                        # 3 = NLI 헤드 유지 + NEI 학습(한국어 연구노트 평가 우위)
+    data: str = "scifact"                      # scifact | klue(한국어, 3분류)
 
     def model_id(self) -> str:
         return NLI_MODELS.get(self.base_model, self.base_model)

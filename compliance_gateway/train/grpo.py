@@ -102,7 +102,7 @@ def run(cfg: GRPOConfig, dataset_path: str, verifier=None) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="exaone")
+    ap.add_argument("--base", default="qwen")
     ap.add_argument("--dataset", default="data/synth/grpo_prompts.jsonl")
     ap.add_argument("--output", default="checkpoints/grpo")
     ap.add_argument("--vllm-mode", default="server", choices=["server", "colocate"])

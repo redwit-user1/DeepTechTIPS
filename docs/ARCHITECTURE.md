@@ -7,7 +7,7 @@ GOONO AI는 **규정준수를 코어에 내재화한** Agentic AI 오케스트�
 ## 1. 4대 축 개요
 
 ### ① Compliance-Aligned SLM
-- 7B 베이스(EXAONE 3.5 7.8B / Qwen 3.5 7B / Gemma 후보, 모두 Apache 2.0) + 도메인 LoRA.
+- 베이스: **Qwen3.8-27B**(2026-08, Apache 2.0) / 경량 Qwen3.5-9B + 도메인 LoRA. (구안의 EXAONE 3.5 는 비상업 라이선스라 제외 — 연구노트 2026-11-09)
 - 정렬: **DPO → RLVR(GRPO)** 단계적 전환. 보상함수로 **VCR**(아래) 사용.
 - 데이터: GOONO 70K+ 연구노트 → (질문, 답변, 출처) 트리플 자동추출.
 

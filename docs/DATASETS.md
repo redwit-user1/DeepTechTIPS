@@ -3,8 +3,8 @@
 GOONO 자체 데이터(연구노트 70K)가 없는 단계에서 VCR/Gateway/SLM 을 부트스트랩하기 위한
 공개 데이터셋 정리. 초기 집중 도메인은 **제약·바이오**.
 
-> 환경 제약: 본 개발 환경은 네트워크 정책상 `huggingface.co` 가 차단(403)된다.
-> S3·GitHub·PyPI 는 접근 가능. HF 의존 데이터/모델은 열린 환경 또는 온프레미스에서 사용.
+> 환경: ~~`huggingface.co` 차단~~ → H200(AI Nexus) 세션과 로컬 PC 모두 HF 접근 가능(2026-11-09 확인).
+> **2026-11 추가 조사는 ⑦ 절** — HF API 로 존재·라이선스·규모·스키마를 실측한 목록이다.
 
 ## 모듈 ↔ 데이터셋 매핑 요약
 
@@ -89,6 +89,80 @@ GOONO 자체 데이터(연구노트 70K)가 없는 단계에서 VCR/Gateway/SLM 
 | ICH E6(R3)/GxP 가이드 | GLP/GMP 데이터 무결성 | 기관 공개 |
 
 - 참고: [FDA Warning Letters & Data Integrity](https://www.certivo.io/blog/fda-warning-letters-data-integrity) · [21 CFR Part 11 & Annex 11 audit trail](https://intuitionlabs.ai/articles/audit-trail-requirements-ai-gxp-compliance)
+
+---
+
+## ⑦ 2026-11 추가 조사 (HF API 실측)
+
+배경: SciFact(영어 바이오) 파인튜닝은 한국어 귀속 과제로 **전이되지 않았다**(연구노트 2026-11-09 §6).
+한국어 NLI 백본, 수치 변조(유형 C)에 가까운 대조 학습셋, 한국어 환각 평가가 비어 있었다.
+
+### A. 한국어 NLI·추론 — NLI 백본의 한국어 학습
+
+| 데이터셋 | 규모·내용 | 라이선스 | 용도 |
+|---|---|---|---|
+| **`klue/klue`** (config `nli`) | KLUE-NLI 약 3만 쌍, 원어민 작성 | CC BY-SA 4.0 | 한국어 NLI 파인튜닝 1순위 |
+| **`kakaobrain/kor_nli`** | KorNLI(MNLI·SNLI·XNLI 번역) 10만+ | CC BY-SA 4.0 | 규모 보강 |
+| `skt/kobest_v1` | BoolQ·COPA·WiC·HellaSwag·SentiNeg | CC BY-SA 4.0 | 한국어 이해 회귀 평가 |
+
+### B. 사실검증·grounding 학습셋 (영어)
+
+| 데이터셋 | 규모·내용 | 라이선스 | 용도 |
+|---|---|---|---|
+| **`tals/vitaminc`** | 45만 대조쌍 — 근거의 **작은 편집으로 라벨이 뒤집힘** | CC BY-SA 3.0 | 유형 C(수치·사실 변조)에 가장 가까운 공개 학습셋 |
+| **`lytang/C2D-and-D2C-MiniCheck`** | 14,395 합성 claim–doc (MiniCheck 학습셋) | MIT | grounding 판정기 학습, 상용 가능 |
+| **`osunlp/AttributionBench`** | 출처–주장 귀속 판정 통합 벤치 | Apache 2.0 | SourceMatch 외부 평가 |
+| **`THUDM/LongCite-45k`** | 문장 단위 인용 생성 SFT 4.5만 | Apache 2.0 | 출처바인딩(04단계) SLM 학습 |
+| `wenhu/tab_fact` | 표 근거 사실검증 11.8만 | CC BY 4.0 | OCR 표(값–라벨 결합 손실) 근거 대응 |
+| `allenai/SciRIFF` | 과학 지시추종 13.7만(claim 검증 포함) | ODC-BY | SLM 과학 SFT |
+| `fever/fever` | 위키 사실검증 | CC BY-SA 3.0 | 일반 NLI 보강 |
+| `facebook/anli` · `dwadden/healthver_entailment` | 적대적 NLI · 건강 claim | CC BY-NC | **비상업 — 평가만** |
+
+### C. 환각 평가 (영어·RAG)
+
+| 데이터셋 | 라이선스 | 비고 |
+|---|---|---|
+| `flowaicom/RAGTruth_test` | MIT | RAG 응답 환각 span 라벨 |
+| `PatronusAI/HaluBench` | CC BY-NC 2.0 | 평가만 |
+| `lytang/LLM-AggreFact` | CC BY-ND 4.0, gated | 평가만(변형 금지) |
+
+### D. 한국어 환각·RAG 평가
+
+| 데이터셋 | 규모·내용 | 라이선스 | 용도 |
+|---|---|---|---|
+| **`ginigen/Korean-Hallucination-Bench`** | 10,170 객관식, 환각 유형 라벨(수치·날짜 왜곡 등) | Apache 2.0 | SLM 한국어 사실성 회귀 평가 |
+| `BAEM1N/Korean-RAG-LLM-Judge-Benchmark` | 300 한국어 문서 RAG QA + 정답·판정 | MIT | 한국어 RAG grounding 평가 |
+| `amphora/korean_science_papers` | 16,967 한국어 과학논문 본문(분야 라벨) | **미표기 — 사용 전 확인** | 한국어 과학 문체 claim 추출 원천 |
+
+### E. R&D 에이전트·규정
+
+| 데이터셋 | 내용 | 라이선스 | 용도 |
+|---|---|---|---|
+| **`futurehouse/lab-bench`** | ProtocolQA·TableQA·LitQA2 등 생물학 연구 실무 | CC BY-SA 4.0 | ③ R&D 에이전트 평가 |
+| `tim-a-wood/fda-warning-letters` | FDA 경고서한 + CFR 조항 인용 구조화 | other(원문은 미 정부 공개) | 규정위반 탐지·ALCOA+ 사례 |
+
+### F. 참고 — 공개 판정 모델
+
+| 모델 | 라이선스 | 비고 |
+|---|---|---|
+| `vectara/hallucination_evaluation_model` (HHEM-2.1-open) | Apache 2.0 | grounding 판정 |
+| `lytang/MiniCheck-Flan-T5-Large` | MIT | C2D/D2C 로 학습 |
+| `ibm-granite/granite-guardian-3.3-8b` | Apache 2.0 | groundedness 위험 판정 포함 |
+| `MoritzLaurer/bge-m3-zeroshot-v2.0` | MIT | 한국어 레코드포함 평가 zero-shot AUC 0.969 (본 레포 실측) |
+
+### HF 에 없거나 쓰면 안 되는 것
+
+- SciTab · WiCE · ExpertQA · HealthVer 원본 — HF 에 없음(GitHub 배포).
+- `wisenut-nlp-team/aihub_retriever_paper_smr` 등 **AI Hub 재배포본** — AI Hub 약관상 재배포 금지. AI Hub 에서 직접 신청할 것.
+- `Bespoke-MiniCheck-7B` — 카드에 라이선스 미표기(원 공지 비상업).
+
+### 권장 도입 순서 (2026-11)
+
+1. **KLUE-NLI + KorNLI** 로 다국어 NLI 백본 파인튜닝 → 사람 라벨 한국어 평가셋으로 측정
+2. **VitaminC + C2D/D2C** 로 대조·grounding 학습 → 유형 C·SourceMatch
+3. Korean-Hallucination-Bench 로 SLM(Qwen3.8-27B) 한국어 사실성 기준선
+4. AttributionBench · LongCite 로 출처바인딩
+5. TabFact 로 표 근거(OCR 표) 대응
 
 ---
 

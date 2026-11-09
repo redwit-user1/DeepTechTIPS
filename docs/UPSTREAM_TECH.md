@@ -109,10 +109,10 @@ pip install -e ".[train]"
 pip install unsloth vllm            # 가속(선택, 실패해도 HF 폴백)
 
 # 멀티GPU SFT (DDP)
-torchrun --nproc_per_node 2 -m compliance_gateway.train.sft --base exaone
+torchrun --nproc_per_node 2 -m compliance_gateway.train.sft --base qwen
 
 # GRPO (2 GPU 분리: 생성/학습)
-CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct
+CUDA_VISIBLE_DEVICES=0 trl vllm-serve --model Qwen/Qwen3.8-27B
 CUDA_VISIBLE_DEVICES=1 python -m compliance_gateway.train.grpo --vllm-mode server
 
 # 온라인 서지 검증 활성화(운영)

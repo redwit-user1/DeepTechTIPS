@@ -1,7 +1,7 @@
 """DPO — VCR 정렬(출처 없는 생성 = 비준수) 학습 (TRL DPOTrainer).
 
 A100 실행:
-  python -m compliance_gateway.train.dpo --base exaone \
+  python -m compliance_gateway.train.dpo --base qwen \
       --sft-adapter checkpoints/sft --dataset data/synth/dpo_pairs.jsonl \
       --output checkpoints/dpo --vcr-accept 0.7
 
@@ -58,7 +58,7 @@ def run(cfg: DPOConfig) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="exaone")
+    ap.add_argument("--base", default="qwen")
     ap.add_argument("--sft-adapter", default="checkpoints/sft")
     ap.add_argument("--dataset", default="data/synth/dpo_pairs.jsonl")
     ap.add_argument("--output", default="checkpoints/dpo")

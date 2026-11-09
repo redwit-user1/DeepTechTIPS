@@ -1,7 +1,7 @@
 """SFT — 도메인 LoRA 지시 미세조정 (TRL SFTTrainer).
 
 A100 실행:
-  python -m compliance_gateway.train.sft --base exaone \
+  python -m compliance_gateway.train.sft --base qwen \
       --dataset data/synth/sft.jsonl --output checkpoints/sft
 
 의존성(A100 환경): pip install "compliance-gateway[train]"
@@ -51,7 +51,7 @@ def run(cfg: SFTConfig) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--base", default="exaone")
+    ap.add_argument("--base", default="qwen")
     ap.add_argument("--dataset", default="data/synth/sft.jsonl")
     ap.add_argument("--output", default="checkpoints/sft")
     ap.add_argument("--epochs", type=int, default=2)

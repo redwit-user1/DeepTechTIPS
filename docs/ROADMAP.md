@@ -10,7 +10,7 @@
 | **M0** (현재) | 레포 스캐폴딩 + VCR/Gateway 골격 | `compliance_gateway` 모듈, VCR v0 스코어러, 7단계 파이프라인 스텁 | 단위테스트 통과 |
 | **M1** | Gateway v1 (API 모델 대상) | 출처바인딩 + 환각 게이팅 + ALCOA+ 체크 + 감사로그 | GPT/Claude 출력에 실동작, 가짜 DOI/수치변조 탐지 데모 |
 | **M2** | R&D Instruction 데이터 파이프라인 | GOONO 70K → (질문,답변,출처) 트리플, DPO Preference 쌍 | 5만건 목표, 전문가 교차검증 샘플 |
-| **M3** | Compliance-Aligned SLM v1 | EXAONE/Qwen + LoRA + DPO 정렬 | VCR 0.60+ 기준선, 기반모델 대비 향상 |
+| **M3** | Compliance-Aligned SLM v1 | Qwen3.8-27B(경량 Qwen3.5-9B) + LoRA + DPO 정렬 | VCR 0.60+ 기준선, 기반모델 대비 향상 |
 | **M4** | R&D 에이전트 v1 + DAG | 탐색·기획 에이전트 + LangGraph + Gateway 경유 | 선행연구→갭→제안서 단일 워크플로우 |
 | **M5** | In-process 게이팅 + Flywheel | 자체 LoRA 로짓 개입, 분기별 재학습(→RLVR) | VCR 자기진화 루프 |
 

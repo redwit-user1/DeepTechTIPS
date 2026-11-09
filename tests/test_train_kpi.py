@@ -18,8 +18,8 @@ from compliance_gateway.train.data_format import (
 
 
 def test_config_resolves_model_id():
-    assert "EXAONE" in SFTConfig(base_model="exaone").model_id()
-    assert "Qwen" in DPOConfig(base_model="qwen").model_id()
+    assert SFTConfig().model_id() == "Qwen/Qwen3.8-27B"
+    assert "Qwen3.5" in DPOConfig(base_model="qwen-small").model_id()
     # 미등록 키는 그대로 경로로 취급(로컬 모델 경로 지원)
     assert DPOConfig(base_model="/local/path").model_id() == "/local/path"
 
