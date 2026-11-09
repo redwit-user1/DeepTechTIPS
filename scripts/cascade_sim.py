@@ -23,9 +23,9 @@ from compliance_gateway.vcr.hallucination import novel_numbers, unit_swaps
 SETS = ("kr_psg_eval", "kr_hard_eval")
 
 
-def load(scores: Path, enc: str, llm: str = "qwen") -> list[dict]:
+def load(scores: Path, enc: str, llm: str = "qwen", sets=SETS) -> list[dict]:
     rows = []
-    for s in SETS:
+    for s in sets:
         src = {r["id"]: r for r in map(json.loads, open(f"data/labeling/{s}.jsonl", encoding="utf-8"))}
         e = {r["id"]: r["score"] for r in map(json.loads, open(scores / f"{s}_{enc}.jsonl", encoding="utf-8"))}
         q = {r["id"]: r["score"] for r in map(json.loads, open(scores / f"{s}_{llm}.jsonl", encoding="utf-8"))}
@@ -87,21 +87,22 @@ def main() -> None:
     ap.add_argument("--scores", type=Path, required=True)
     ap.add_argument("--enc", default="klue")
     ap.add_argument("--llm", default="qwen", help="LLM 점수 파일 태그(qwen=v1 프롬프트, qwen2=v2)")
+    ap.add_argument("--sets", nargs="+", default=list(SETS), help="평가셋(외부셋: kr_abs_eval)")
     a = ap.parse_args()
-    rows = load(a.scores, a.enc, a.llm)
+    rows = load(a.scores, a.enc, a.llm, a.sets)
     docs = sorted({r["doc"] for r in rows})
     fold = {d: i % 2 for i, d in enumerate(docs)}
     # 배포 기본값(CascadeNLI) — 아래 탐색은 F1 최대라 LLM 호출을 아끼지 않는다
     from compliance_gateway.nli.cascade import CascadeNLI as C
     d = (C.LO, C.HI, C.THRESHOLD)
     print(f"[배포 기본값 {d}]\n  전체   {fmt(run(rows, *d))}")
-    for s in SETS:
+    for s in a.sets:
         print(f"  {s:13s} {fmt(run([r for r in rows if r['set'] == s], *d))}")
     for mode, rule in (("enc", False), ("enc", True), ("llm", False), ("llm", True), ("cascade", True)):
         cfg, m = best(rows, mode, rule) or (None, None)
         if not m:
             print(f"{mode:8s} 규칙{'O' if rule else 'X'}: PASS≥90% 운영점 없음"); continue
-        per = {s: fmt(run([r for r in rows if r["set"] == s], *cfg, use_rule=rule)) for s in SETS}
+        per = {s: fmt(run([r for r in rows if r["set"] == s], *cfg, use_rule=rule)) for s in a.sets}
         # 홀드아웃: 단락 절반에서 고른 구성을 나머지 절반에 적용 — 양방향 평균(한쪽만 보면 분할 운에 좌우)
         ms = []
         for k in (0, 1):
