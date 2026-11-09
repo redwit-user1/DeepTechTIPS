@@ -35,12 +35,17 @@ def main() -> None:
     ap.add_argument("--nli", default=None, help="트랜스포머 NLI 경로/ID (없으면 통계 v0.5)")
     ap.add_argument("--llm", default=None, help="LLM 판정기 모델 ID")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--dump", default=None, help="행별 점수를 jsonl 로 저장(캐스케이드 분석용)")
     a = ap.parse_args()
 
     rows = [json.loads(l) for l in open(a.path, encoding="utf-8")]
     from compliance_gateway.data.ocr.claim_evidence import surface_leak
     leak = surface_leak([{"claim": r["hypothesis"], "evidence": r["premise"], "label": r["label"]} for r in rows])
     scores, name = score_all(rows, a)
+    if a.dump:
+        with open(a.dump, "w", encoding="utf-8") as f:
+            for r, sc in zip(rows, scores):
+                print(json.dumps({"id": r["id"], "kind": r["kind"], "label": r["label"], "score": sc}), file=f)
 
     pos = [s for s, r in zip(scores, rows) if r["label"] == "entail"]
     neg = [s for s, r in zip(scores, rows) if r["label"] != "entail"]

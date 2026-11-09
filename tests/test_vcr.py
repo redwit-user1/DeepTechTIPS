@@ -59,3 +59,12 @@ def test_weights_normalized():
         weights={"source_exist": 2, "source_match": 2, "alcoa": 2, "halluc": 2},
     )
     assert 0.0 <= b.vcr <= 1.0
+
+
+def test_unit_swaps():
+    # 값은 같고 단위만 바뀐 수치(유형 C 변형)를 잡고, 환산·비율 분모는 통과시킨다
+    from compliance_gateway.vcr.hallucination import unit_swaps
+    assert unit_swaps("10 mg 투여", "10 ug 투여") == ["10mg"]
+    assert unit_swaps("20 mM 처리", "20 uM 처리") == ["20mm"]
+    assert unit_swaps("1 g 투여", "1,000 mg 투여") == []
+    assert unit_swaps("1분당 60 증가", "1초당 1 증가") == []

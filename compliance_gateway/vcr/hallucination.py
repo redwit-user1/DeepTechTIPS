@@ -78,6 +78,42 @@ def _type_c(text: str, grounding: tuple[str, ...]) -> float:
     return tampered / checked
 
 
+# 같은 차원(질량·농도·부피·시간·길이)의 단위 — 값은 같은데 단위만 바뀌면 크기가 10^3 배씩 달라진다.
+_UNIT_FAMILY = {u.lower(): f for f, us in {
+    "mass": ("ng", "ug", "µg", "μg", "㎍", "mg", "g", "kg"),
+    "conc": ("nm", "um", "µm", "μm", "mm", "m"),
+    "vol": ("ul", "µl", "μl", "ml", "㎖", "l"),
+    "time": ("sec", "초", "min", "분", "hr", "시간", "일", "주", "개월"),
+    "len": ("㎛", "cm"),
+}.items() for u in us}
+
+
+def unit_swaps(text: str, evidence: str) -> list[str]:
+    """값은 근거와 같은데 단위만 다른 수치(µg→mg 등). 유형 C 의 다른 얼굴.
+
+    `_type_c` 는 "같은 단위·다른 값"만 본다. 단위 바꿈은 값이 같아 어휘·수치 겹침으로는
+    오히려 '일치'로 보이고, 인코더 NLI 도 놓친다(한국어 어려운 평가셋: 통과 점수 0.27~0.41).
+    단위 환산(1,000 mg → 1 g)은 값이 바뀌므로 걸리지 않는다.
+
+    ponytail: nm/µm 처럼 길이·농도가 겹치는 표기는 농도로 본다 — 오탐이 나면 문맥 판정으로 교체.
+    """
+    from compliance_gateway.data.ocr.claim_evidence import NUM_UNIT
+
+    ev: dict[str, set[str]] = {}
+    for v, u in NUM_UNIT.findall(evidence or ""):
+        ev.setdefault(v, set()).add(u.lower())
+    out = []
+    for v, u in NUM_UNIT.findall(text or ""):
+        u = u.lower()
+        if v == "1":   # "1초당 → 1분당" 같은 비율 분모 — 단위 바꿈이 아니라 환산이다
+            continue
+        fam = _UNIT_FAMILY.get(u)
+        seen = ev.get(v, set())
+        if fam and u not in seen and any(_UNIT_FAMILY.get(x) == fam for x in seen):
+            out.append(f"{v}{u}")
+    return out
+
+
 def _type_a_b_verified(citations: list[Citation], verifier) -> Optional[float]:
     """CitationVerifier 기반 유형 A/B 점수(3-class 가중 감점).
 
