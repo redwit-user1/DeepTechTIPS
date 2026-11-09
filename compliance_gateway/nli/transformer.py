@@ -84,7 +84,9 @@ class TransformerNLI:
             return self._cache[key]
         self._ensure_loaded()
         assert self._pipe is not None
-        out = self._pipe({"text": premise, "text_pair": hypothesis})
+        # 근거(premise)가 512 토큰을 넘으면 truncation 없이는 예외가 난다.
+        # ponytail: 긴 쪽부터 자른다 — 근거 뒷부분이 잘릴 수 있음. 필요하면 문단 단위 max-pool 로 교체.
+        out = self._pipe({"text": premise, "text_pair": hypothesis}, truncation=True)
         scores = out[0] if (out and isinstance(out[0], list)) else out
         val = self._entail_score(scores, self.entailment_label)
         # 임계값 스윕은 동일 쌍을 반복 평가하므로 캐시 효과가 크다.

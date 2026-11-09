@@ -102,13 +102,15 @@ bash scripts/run_local_ocr.sh /path/to/ocr --write  # 전량 수확·저장
 > | 평가셋 | 성격 | 결과 |
 > |---|---|---|
 > | 외부 EN (SciFact) | 전문가 주석 실데이터 | F1 **24.0%** (dev, θ=0.70) |
-> | **실데이터 KR** (국내 8개기관 24과제 원문, n=186) | 교차 귀속 오류, 변조 없음 | **AUC 0.704, 사용 가능한 운영점 없음** |
+> | **실데이터 KR** (국내 8개기관 24과제 원문, n=186) | 교차 귀속 오류, 변조 없음 | ~~AUC 0.704~~ **판정 불가 평가** — 근거에 정답 값이 거의 없다 |
+> | 실데이터 KR `--full-record` (근거에 과제 레코드 포함) | 판정 가능판 | 통계 0.868 / DeBERTa-large 0.900 / bge-m3 **0.969** (zero-shot) |
 > | 합성 EN / KR | 규칙 변조 | F1 98.2% / 100% ← 인공물 |
 >
-> 한국어 실데이터는 위반이 정상 최저점 위에 몰려 분포가 겹친다.
-> 데이터를 2.7배(9→24과제) 늘려도 AUC 0.715→0.704 로 유지 — **표본 부족이 아니라 모델 한계**.
-> 최대 약점은 ALCOA+ `Accurate`(수치·결과변수 오귀속) **29.4%**.
-> 목표 90%까지는 트랜스포머 NLI 도입이 필수 조건.
+> ⚠️ **정정(2026-11-09)**: 0.704 는 모델 한계가 아니라 **평가 설계 결함**이었다. 근거(과제 서술)에
+> 정답 값이 있는 비율이 결과변수·선정기준 0%, 등록례수 26%, 수행기관 9% 다. `--full-record` 도
+> 정답이 근거에 문자 그대로 있는 쉬운 조건이라 KPI 근거가 아니다(패러프레이즈 판 필요).
+> SciFact 파인튜닝(2분류)은 SciFact dev F1 92.9% 지만 한국어 귀속 과제는 움직이지 않았다(0.900→0.898).
+> 병목은 모델이 아니라 **사람이 라벨링한 한국어 평가셋**이다. [`docs/notebook/2026-11-09.md`](docs/notebook/2026-11-09.md)
 > [`docs/EVAL_EXTERNAL.md`](docs/EVAL_EXTERNAL.md) · [`docs/DATASET_KR.md`](docs/DATASET_KR.md)
 
 벤치마크 결과·해석: [`docs/EVAL_SCIFACT.md`](docs/EVAL_SCIFACT.md), [`docs/SYNTH_PIPELINE.md`](docs/SYNTH_PIPELINE.md).
@@ -117,7 +119,8 @@ bash scripts/run_local_ocr.sh /path/to/ocr --write  # 전량 수확·저장
 
 ## H100 학습 계획 (KT Cloud AI Nexus)
 
-**H100 80GB × 2** 확보. 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
+~~H100 80GB × 2~~ → 실제 할당은 **H200 141GB × 2** (NIPA 고성능 컴퓨팅 지원사업, Backend.AI 세션 — 아래 AI Train/Serv·teleport 서술은 실제 환경과 다르다.
+실측 환경·SSH 절차는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md) 상단). 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
 로드맵·KPI 매핑·실행 커맨드는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md).
 
 **먼저 환경을 확인한다** — AI Nexus 는 AI Train(학습)과 AI Serv(추론 슬라이싱)를

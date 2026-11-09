@@ -22,6 +22,7 @@ BASE_MODELS = {
 
 # GPU 프로파일 — 환경에 맞춰 배치·정밀도 기본값을 잡는다.
 GPU_PROFILES = {
+    "h200": {"bf16": True, "fp8_capable": True, "sft_batch": 12, "dpo_batch": 6, "max_seq": 4096},  # 141GB, 실할당 GPU
     "h100": {"bf16": True, "fp8_capable": True, "sft_batch": 8, "dpo_batch": 4, "max_seq": 4096},
     "a100": {"bf16": True, "fp8_capable": False, "sft_batch": 4, "dpo_batch": 2, "max_seq": 2048},
 }
@@ -140,6 +141,7 @@ class NLIFinetuneConfig:
     epochs: int = 3
     lr: float = 2e-5
     per_device_batch_size: int = 16
+    num_labels: int = 2                        # 3 = NLI 헤드 유지 + NEI 학습(실험, 실측 열위)
 
     def model_id(self) -> str:
         return NLI_MODELS.get(self.base_model, self.base_model)

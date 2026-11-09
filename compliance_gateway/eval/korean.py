@@ -43,14 +43,14 @@ ALCOA_KO = {
 }
 
 
-def build_eval(real: bool = False) -> tuple[list[dict], object, list[dict]]:
+def build_eval(real: bool = False, full_record: bool = False) -> tuple[list[dict], object, list[dict]]:
     """real=True 면 **실데이터 평가셋**(변조 없음, 출처 기반 라벨)을 쓴다."""
     if real:
         from compliance_gateway.data.korean.real_eval import (
             build as build_real, build_registry as reg_real, load_protocols,
         )
         protocols = load_protocols()
-        evals, _ = build_real(protocols)
+        evals, _ = build_real(protocols, full_record=full_record)
         items = [{"query": e["query"], "response": e["response"],
                   "grounding": e["grounding"], "label": e["label"]} for e in evals]
         return items, reg_real(protocols), evals
@@ -73,9 +73,11 @@ def main() -> None:
     add_nli_args(ap)
     ap.add_argument("--real", action="store_true",
                     help="실데이터 평가셋 사용(변조 없음 — 성능 주장의 진짜 근거)")
+    ap.add_argument("--full-record", action="store_true",
+                    help="근거에 필드 레코드 포함 — 기본 근거엔 정답 값이 거의 없어 판정 불가")
     a = ap.parse_args()
 
-    items, registry, evals = build_eval(real=a.real)
+    items, registry, evals = build_eval(real=a.real, full_record=a.full_record)
     if a.real:
         print("데이터셋: 실데이터 KR (교차 귀속 오류, 원문 변조 없음)")
     n_ok = sum(1 for i in items if i["label"] == "compliant")

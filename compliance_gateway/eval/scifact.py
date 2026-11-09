@@ -39,14 +39,34 @@ def _load_corpus(corpus_path: Path) -> dict[int, list[str]]:
     return corpus
 
 
+def _nei_examples(row: dict, corpus: dict[int, list[str]]) -> list[NLIExample]:
+    """인용됐지만 근거가 아닌 초록 → NEI(neutral).
+
+    오귀속(무관한 출처를 인용)이 우리가 잡을 핵심 위반인데, SUPPORT/CONTRADICT 만으로
+    학습하면 neutral 을 배울 기회가 없다. 근거 문장 길이(1~3문장)에 맞춰
+    초록 앞 2문장만 쓴다 — 전문을 쓰면 길이만으로 라벨이 샌다.
+    """
+    used = {int(d) for d in (row.get("evidence") or {})}
+    out = []
+    for d in row.get("cited_doc_ids", []):
+        abstract = corpus.get(int(d))
+        if int(d) in used or not abstract:
+            continue
+        out.append(NLIExample(claim=row["claim"], evidence=" ".join(abstract[:2]),
+                              label="NEI", claim_id=int(row["id"]), doc_id=int(d)))
+    return out
+
+
 def load_scifact(
     split: str = "train",
     data_dir: Optional[Path] = None,
     max_examples: Optional[int] = None,
+    include_nei: bool = False,
 ) -> list[NLIExample]:
     """근거가 달린(SUPPORT/CONTRADICT) claim 만 NLIExample 로 반환.
 
     근거 없는(NEI) claim 은 SourceMatch 이분 벤치마크에서 제외한다.
+    `include_nei=True` 면 인용됐으나 근거가 아닌 초록을 NEI 로 추가한다(학습용).
     """
     data_dir = data_dir or DEFAULT_DIR
     corpus = _load_corpus(data_dir / "corpus.jsonl")
@@ -56,6 +76,8 @@ def load_scifact(
     with claims_path.open(encoding="utf-8") as f:
         for line in f:
             row = json.loads(line)
+            if include_nei:
+                examples.extend(_nei_examples(row, corpus))
             evidence = row.get("evidence") or {}
             if not evidence:
                 continue

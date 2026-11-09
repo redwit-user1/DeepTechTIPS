@@ -98,3 +98,9 @@ def test_low_completeness_signals_parse_failure_not_violation():
     """구조가 없는 텍스트는 '위반'이 아니라 '파싱 실패'로 분류돼야 한다."""
     note = parse_note("이것은 연구노트가 아닌 임의의 문단입니다. 특별한 구조가 없습니다.")
     assert note.completeness < 0.4
+
+
+def test_claim_evidence_selfcheck():
+    # 교란 띄어쓰기 보존·공유 수치 한정·부등호 제외·표면 누설 감지
+    from compliance_gateway.data.ocr.claim_evidence import _demo
+    _demo()

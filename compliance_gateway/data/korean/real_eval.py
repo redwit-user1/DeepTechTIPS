@@ -59,6 +59,19 @@ def grounding_of(t: dict) -> str:
     return " ".join(parts)
 
 
+def grounding_full(t: dict) -> str:
+    """근거 = 서술 + **검증 대상 필드의 원문 레코드**.
+
+    `grounding_of` 만 쓰면 정답 값이 근거에 없다(실측: 결과변수·선정기준 0%,
+    등록례수 26%, 수행기관 9%). 그러면 어떤 NLI 도 판정할 수 없고 AUC 는
+    주제어 겹침만 잰다. 인용된 출처 = 과제 레코드 전체라는 실제 상황과도 맞다.
+    """
+    sites = t["sites"] if isinstance(t["sites"], list) else [t["sites"]]
+    return (f"{grounding_of(t)} Primary outcome: {t['primary_outcome']}. "
+            f"Enrollment: {int(t['enrollment']):,} participants. "
+            f"Inclusion criteria: {t['inclusion']}. Sites: {', '.join(map(str, sites))}.")
+
+
 def citation_of(t: dict) -> str:
     """국내 R&D 출처 표기 — 실제 기관·연도·과제번호."""
     year = t["start_date"][:4]
@@ -79,17 +92,18 @@ def _carrier(field: str, value: str, t: dict) -> str:
     raise ValueError(field)
 
 
-def build(protocols: list[dict]) -> tuple[list[dict], list[dict]]:
+def build(protocols: list[dict], full_record: bool = False) -> tuple[list[dict], list[dict]]:
     """실데이터 평가 아이템 + DPO 쌍 생성.
 
     음성은 **다른 과제의 실제 값**을 가져와 잘못 귀속시킨 것이다(원문 변조 없음).
+    `full_record=True` 면 근거에 필드 레코드를 포함해 판정 가능하게 만든다.
     """
     items: list[dict] = []
     pairs: list[dict] = []
     n = len(protocols)
 
     for i, t in enumerate(protocols):
-        g = grounding_of(t)
+        g = grounding_full(t) if full_record else grounding_of(t)
         other = protocols[(i + 1) % n]          # 짝수: 다른 실제 과제
         far = protocols[(i + 2) % n]
 

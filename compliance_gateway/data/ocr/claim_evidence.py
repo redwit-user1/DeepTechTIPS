@@ -110,6 +110,27 @@ def numbers(s: str) -> set[str]:
     return {f"{v}{u}" for v, u in NUM_UNIT.findall(s)}
 
 
+# 부등호에 묶인 수치는 바꿔도 모순이 안 될 수 있다("60% 이하" -> "79% 이하" 는
+# "50~60%" 와 양립). 교란 대상에서 뺀다.
+_INEQ_AFTER = re.compile(r"\s*(?:이하|이상|미만|초과|under|below|above|over)")
+_INEQ_BEFORE = re.compile(r"[<>≤≥]\s*$")
+
+
+def exact_numbers(s: str) -> set[str]:
+    """부등호에 묶이지 않은 (값, 단위) — 바꾸면 확실히 다른 값이 되는 것만."""
+    out = set()
+    for m in NUM_UNIT.finditer(s):
+        if _INEQ_AFTER.match(s, m.end()) or _INEQ_BEFORE.search(s[:m.start()]):
+            continue
+        out.add(f"{m.group(1)}{m.group(2)}")
+    return out
+
+
+def shared_numbers(claim: str, evidence: str) -> set[str]:
+    """주장과 근거가 **같은 값**으로 공유하는 수치. 이것을 바꿔야 모순이 성립한다."""
+    return exact_numbers(claim) & exact_numbers(evidence)
+
+
 def supports(claim: str, evidence: str) -> bool:
     """근거가 주장을 **실제로** 뒷받침할 만한가.
 
@@ -132,16 +153,24 @@ def supports(claim: str, evidence: str) -> bool:
     return w >= 1 and bool(numbers(claim) & numbers(evidence))
 
 
-def perturb(evidence: str, rng: random.Random) -> tuple[str, list[str]]:
+def perturb(evidence: str, rng: random.Random,
+            targets: set[str] | None = None) -> tuple[str, list[str]]:
     """수치를 바꾼 하드 네거티브. 환각 유형 C 를 그대로 재현한다.
 
     자릿수를 유지하되 값을 확실히 다르게 만든다. 단위는 건드리지 않는다 —
     바꾸면 단위 불일치라는 **다른** 오류가 되어 무엇을 학습하는지 흐려진다.
+
+    - `targets` 가 주어지면 그 (값, 단위)만 바꾼다. 주장과 공유하지 않는 수치를
+      바꿔 봐야 주장과 모순되지 않는다(1차 셋의 82% 가 그랬다).
+    - 원문의 숫자-단위 **띄어쓰기를 보존**한다. 1차 셋은 교란 결과를 항상
+      `"{값} {단위}"` 로 써서, 띄어쓰기만 보고 contradict 를 맞힐 수 있었다.
     """
     changes: list[str] = []
 
     def one(m: re.Match) -> str:
         val, unit = m.group(1), m.group(2)
+        if targets is not None and f"{val}{unit}" not in targets:
+            return m.group(0)
         if "." in val:
             head, tail = val.split(".", 1)
             new = f"{head}.{(int(tail) + rng.randint(1, 8)) % (10 ** len(tail)):0{len(tail)}d}"
@@ -153,9 +182,29 @@ def perturb(evidence: str, rng: random.Random) -> tuple[str, list[str]]:
             if new == val or new.startswith("-"):
                 new = str(int(val) + delta)
         changes.append(f"{val}{unit}->{new}{unit}")
-        return f"{new} {unit}"
+        return new + m.group(0)[len(val):]   # 원래 띄어쓰기·단위 표기 그대로
 
     return NUM_UNIT.sub(one, evidence), changes
+
+
+def surface_leak(rows: list[dict]) -> float:
+    """의미를 안 보는 표면 특징만으로 라벨을 맞히는 **상한** 정확도.
+
+    특징: 내용어 중첩 수(0~3+), 주장과 공유 수치 유무, 근거 수치가 전부 띄어 쓰였는지.
+    특징 조합(버킷)마다 다수 라벨을 고른 정확도 = 이 특징들을 쓰는 어떤 분류기보다도 높다.
+    3분류 균형셋에서 우연은 33% 다. 1차 셋은 94.9% 였다 — 학습하면 표면을 배운다.
+    """
+    from collections import Counter, defaultdict
+
+    buckets: dict[tuple, Counter] = defaultdict(Counter)
+    for r in rows:
+        c, e = r["claim"], r["evidence"]
+        ms = list(NUM_UNIT.finditer(e))
+        spaced = bool(ms) and all(re.search(r"\s", m.group(0)) for m in ms)
+        key = (min(len(words(c) & words(e)), 3), bool(numbers(c) & numbers(e)), spaced)
+        buckets[key][r["label"]] += 1
+    n = sum(sum(b.values()) for b in buckets.values())
+    return sum(b.most_common(1)[0][1] for b in buckets.values()) / max(1, n)
 
 
 @dataclass
@@ -222,6 +271,17 @@ def _demo() -> None:
     assert not supports("품질이 크게 향상되었습니다", "TE-201 온도 96.8 ℃ 95.8 ℃")
     # 내용어 2개면 수치 없이도 통과
     assert supports("배양 온도를 올리자 수율이 증가하였다", "배양 조건 37 ℃ 수율 18 %")
+
+    # 교란은 띄어쓰기를 보존하고, targets 밖의 수치는 건드리지 않는다
+    bad, ch = perturb("37℃ 에서 수율 18.7%, 5 mL", random.Random(1), targets={"18.7%"})
+    assert bad.startswith("37℃ ") and "5 mL" in bad and "%," in bad and len(ch) == 1, bad
+    # 부등호에 묶인 수치는 공유 수치로 보지 않는다
+    assert shared_numbers("viability 가 60 % 로 감소", "72 hr 에서 viability 60% 이하") == set()
+    assert shared_numbers("수율이 18.7 % 로 증가", "수율 18.7% 측정") == {"18.7%"}
+    # 표면 누설 감지: neutral 만 중첩 0 이면 상한이 높게 나온다
+    leaky = [{"claim": "수율 증가 확인", "evidence": "수율 증가 10 %", "label": "entail"},
+             {"claim": "수율 증가 확인", "evidence": "배터리 전압 3 V", "label": "neutral"}] * 5
+    assert surface_leak(leaky) == 1.0
     print("claim_evidence demo ok —", len(ss), "문장 /", len(ev), "근거 /", len(cl), "주장")
     print("  교란 예:", ch)
 

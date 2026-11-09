@@ -27,18 +27,25 @@ from compliance_gateway.train.config import NLIFinetuneConfig
 LABEL2ID = {"SUPPORT": 0, "CONTRADICT": 1}
 ID2LABEL = {0: "entailment", 1: "contradiction"}
 
+# 3분류(실험): MNLI 헤드를 유지하고 NEI(인용됐으나 근거 아닌 초록 앞 2문장)를 neutral 로 학습.
+# "2분류는 neutral 을 잃어 오귀속을 못 잡는다"는 가설로 넣었으나 **실측에서 기각**됐다
+# (2026-11-09, DeBERTa-v3-large, H200): SciFact dev F1 2분류 92.9% / 3분류 91.0%,
+# 한국어 레코드포함 AUC 2분류 0.898 / 3분류 0.781. 기본은 2분류.
+TO_NLI = {"SUPPORT": "entailment", "NEI": "neutral", "CONTRADICT": "contradiction"}
 
-def prepare_examples(split: str, data_dir=None) -> list:
+
+def prepare_examples(split: str, data_dir=None, include_nei: bool = False) -> list:
     """SciFact → (premise=근거, hypothesis=주장, label) 목록."""
     from compliance_gateway.eval.scifact import load_scifact
 
-    return load_scifact(split=split, data_dir=data_dir)
+    return load_scifact(split=split, data_dir=data_dir, include_nei=include_nei)
 
 
 def dry_run(cfg: NLIFinetuneConfig) -> dict:
     """GPU 없이 데이터·설정을 검증한다(A100 에서 첫 실행 실패 방지)."""
-    train = prepare_examples(cfg.train_split)
-    dev = prepare_examples(cfg.eval_split) if cfg.eval_split else []
+    nei = cfg.num_labels == 3
+    train = prepare_examples(cfg.train_split, include_nei=nei)
+    dev = prepare_examples(cfg.eval_split, include_nei=nei) if cfg.eval_split else []
     counts = {"SUPPORT": 0, "CONTRADICT": 0}
     for e in train:
         counts[e.label] = counts.get(e.label, 0) + 1
@@ -47,13 +54,13 @@ def dry_run(cfg: NLIFinetuneConfig) -> dict:
         "train_examples": len(train),
         "eval_examples": len(dev),
         "label_distribution": counts,
-        "id2label": ID2LABEL,
+        "num_labels": cfg.num_labels,
         "epochs": cfg.epochs,
         "lr": cfg.lr,
         "batch_size": cfg.per_device_batch_size,
     }
     assert train, "학습 예시가 비어 있음 — bash scripts/download_scifact.sh 먼저 실행"
-    assert set(counts) <= set(LABEL2ID), f"예상치 못한 라벨: {set(counts)}"
+    assert set(counts) <= set(TO_NLI if nei else LABEL2ID), f"예상치 못한 라벨: {set(counts)}"
     return report
 
 
@@ -69,22 +76,33 @@ def run(cfg: NLIFinetuneConfig) -> None:
     )
 
     tok = AutoTokenizer.from_pretrained(cfg.model_id())
-    model = AutoModelForSequenceClassification.from_pretrained(
-        cfg.model_id(),
-        num_labels=2,
-        id2label=ID2LABEL,              # ← 추론 시 'entailment' 라벨 조회에 필수
-        label2id={v: k for k, v in ID2LABEL.items()},
-        ignore_mismatched_sizes=True,   # MNLI(3-class) → 2-class 헤드 교체 허용
-    )
+    nei = cfg.num_labels == 3
+    if nei:
+        # 사전학습 NLI 헤드 유지 — 라벨 id 는 모델 설정을 따른다
+        model = AutoModelForSequenceClassification.from_pretrained(cfg.model_id())
+        l2i = {k.lower(): v for k, v in model.config.label2id.items()}
+        missing = set(TO_NLI.values()) - set(l2i)
+        assert not missing, f"베이스가 3분류 NLI 모델이 아님(없는 라벨 {missing}) — --labels 2 사용"
+        lab = {k: l2i[v] for k, v in TO_NLI.items()}
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            cfg.model_id(),
+            num_labels=2,
+            id2label=ID2LABEL,              # ← 추론 시 'entailment' 라벨 조회에 필수
+            label2id={v: k for k, v in ID2LABEL.items()},
+            ignore_mismatched_sizes=True,   # MNLI(3-class) → 2-class 헤드 교체 허용
+        )
+        lab = LABEL2ID
+    ent = lab["SUPPORT"]
 
     def to_dataset(split: str) -> Optional[Dataset]:
-        examples = prepare_examples(split)
+        examples = prepare_examples(split, include_nei=nei)
         if not examples:
             return None
         ds = Dataset.from_dict({
             "premise": [e.evidence for e in examples],
             "hypothesis": [e.claim for e in examples],
-            "labels": [LABEL2ID[e.label] for e in examples],
+            "labels": [lab[e.label] for e in examples],
         })
         return ds.map(
             lambda b: tok(b["premise"], b["hypothesis"], truncation=True, max_length=512),
@@ -98,10 +116,10 @@ def run(cfg: NLIFinetuneConfig) -> None:
         preds = np.argmax(p.predictions, axis=1)
         labels = p.label_ids
         acc = float((preds == labels).mean())
-        # SUPPORT(0) 를 positive 로 본 F1
-        tp = int(((preds == 0) & (labels == 0)).sum())
-        fp = int(((preds == 0) & (labels != 0)).sum())
-        fn = int(((preds != 0) & (labels == 0)).sum())
+        # SUPPORT(entailment) 를 positive 로 본 F1
+        tp = int(((preds == ent) & (labels == ent)).sum())
+        fp = int(((preds == ent) & (labels != ent)).sum())
+        fn = int(((preds != ent) & (labels == ent)).sum())
         prec = tp / (tp + fp) if (tp + fp) else 0.0
         rec = tp / (tp + fn) if (tp + fn) else 0.0
         return {
@@ -147,9 +165,11 @@ def main() -> None:
     ap.add_argument("--split", default="train")
     ap.add_argument("--eval-split", default="dev")
     ap.add_argument("--dry-run", action="store_true", help="GPU 없이 데이터·설정 검증")
+    ap.add_argument("--labels", type=int, choices=(2, 3), default=2,
+                    help="2=SUPPORT/CONTRADICT(기본, 실측 우위), 3=NLI 헤드 유지+NEI(실험)")
     a = ap.parse_args()
     cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output,
-                            train_split=a.split, eval_split=a.eval_split)
+                            train_split=a.split, eval_split=a.eval_split, num_labels=a.labels)
     if a.dry_run:
         report = dry_run(cfg)
         print("=== dry-run 검증 통과 ===")
