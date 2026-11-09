@@ -68,7 +68,7 @@ def main() -> None:
             v = res.ctx.get("verify") or {}
             rec = {"topic": topic, "status": res.status, "rate": automation_rate(res.log), "log": res.log,
                    "decision": v.get("decision"), "vcr": v.get("vcr"), "regenerations": v.get("regenerations"),
-                   "n_sources": len(res.ctx.get("search") or []), "seconds": round(time.time() - t0, 1)}
+                   "n_sources": len((res.ctx.get("search") or {}).get("grounding", [])), "seconds": round(time.time() - t0, 1)}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             f.flush()
             logs += res.log
