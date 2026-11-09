@@ -114,6 +114,50 @@ def unit_swaps(text: str, evidence: str) -> list[str]:
     return out
 
 
+# 단위 → 기준 단위 배율(같은 차원 안에서만 비교). 근사 판정용.
+_SCALE = {"ng": 1e-9, "ug": 1e-6, "µg": 1e-6, "μg": 1e-6, "㎍": 1e-6, "mg": 1e-3, "g": 1.0, "kg": 1e3,
+          "nm": 1e-9, "um": 1e-6, "µm": 1e-6, "μm": 1e-6, "mm": 1e-3, "m": 1.0,
+          "ul": 1e-6, "µl": 1e-6, "μl": 1e-6, "ml": 1e-3, "㎖": 1e-3, "l": 1.0,
+          "sec": 1, "초": 1, "min": 60, "분": 60, "hr": 3600, "시간": 3600, "일": 86400, "주": 604800}
+
+
+def approx_numbers(text: str, evidence: str, tol: float = 0.1) -> list[str]:
+    """근거에 **그대로는 없지만** 환산·반올림하면 근거 값과 10% 안쪽인 수치.
+
+    정당한 근사("약 352 MPa", 1,000 mg → 1 g)일 수도, 미묘한 변조일 수도 있다 — 판정이 어렵다.
+    작은 인코더는 이런 문장을 확신하며 거부했다(어려운 셋 근사 평균 0.65). 그래서 **LLM 으로 보낼
+    문장**을 고르는 데 쓴다(판정 자체는 하지 않는다).
+    """
+    from compliance_gateway.data.ocr.claim_evidence import NUM_UNIT
+
+    ev = []
+    for v, u in NUM_UNIT.findall(evidence or ""):
+        try:
+            ev.append((float(v), u.lower()))
+        except ValueError:
+            pass
+    exact = {(x, u) for x, u in ev}
+    out = []
+    for v, u in NUM_UNIT.findall(text or ""):
+        u = u.lower()
+        try:
+            x = float(v)
+        except ValueError:
+            continue
+        if (x, u) in exact or x == 0:
+            continue
+        for y, w in ev:
+            fam_ok = u == w or (_UNIT_FAMILY.get(u) and _UNIT_FAMILY.get(u) == _UNIT_FAMILY.get(w))
+            if not fam_ok or y == 0:
+                continue
+            a = x * _SCALE.get(u, 1.0)
+            b = y * _SCALE.get(w, 1.0)
+            if abs(a - b) / abs(b) <= tol:
+                out.append(f"{v}{u}")
+                break
+    return out
+
+
 def _type_a_b_verified(citations: list[Citation], verifier) -> Optional[float]:
     """CitationVerifier 기반 유형 A/B 점수(3-class 가중 감점).
 

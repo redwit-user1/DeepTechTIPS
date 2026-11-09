@@ -81,9 +81,11 @@ def test_cascade_routes_only_ambiguous_to_llm():
     enc = lambda p, h: {"a": 0.001, "b": 0.5, "c": 0.95}[h[0]]
     llm_calls = []
     llm = lambda p, h: (llm_calls.append(h), 0.7)[1]
-    c = CascadeNLI(enc, llm)
+    c = CascadeNLI(enc, llm, lo=0.005, hi=0.8, threshold=0.1)
     assert c("근거", "a 문장") == 0.001        # 인코더가 확신(위반)
     assert c("근거", "c 문장") == 0.95         # 인코더가 확신(통과)
     assert c("근거", "b 문장") == 0.7          # 애매 → LLM
     assert c("10 ug 투여", "b 10 mg 투여") == 0.0   # 단위 바꿈은 규칙이 먼저 잡는다
     assert llm_calls == ["b 문장"] and c.llm_calls == 1
+    # 근사·환산 수치는 인코더 확신과 무관하게 LLM 으로
+    assert c("수율 18.7 % 증가", "c 수율 약 19 % 증가") == 0.7 and c.llm_calls == 2

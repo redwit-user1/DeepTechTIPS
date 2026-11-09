@@ -43,7 +43,7 @@ class ComplianceGateway:
         주면 05 단계에서 **응답의 모든 문장**을 근거와 대조한다(인용 유무 무관).
         근거가 뒷받침하지 않는 문장(점수 < 임계값)이 하나라도 있으면 통과시키지 않는다.
         VCR 은 인용이 달린 문장만 보므로, 원문을 옮겨 쓴 보고서 문장은 이 단계로만 검증된다.
-        `CascadeNLI` 와 함께 쓸 때 `CascadeNLI.THRESHOLD`(0.1).
+        `CascadeNLI` 와 함께 쓸 때 그 인스턴스의 `.threshold`.
     """
 
     def __init__(
