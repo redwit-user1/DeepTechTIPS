@@ -11,12 +11,14 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import time
 
 from compliance_gateway.agent.dag import automation_rate
 from compliance_gateway.agent.wf_a import run_wf_a
 from compliance_gateway.verify.backends import OpenAlexBackend
+from compliance_gateway.verify.models import PaperRecord
 
 # (과제 주제, OpenAlex 검색어) — 초기 집중 도메인(제약·바이오·연구데이터 무결성)
 TOPICS = [
@@ -51,12 +53,27 @@ def local_llm(model_id: str, max_new_tokens: int = 1500):
     return llm
 
 
+def save_search(path: str, limit: int = 5) -> None:
+    """검색만 미리 해 둔다. OpenAlex 무료 한도는 **IP 단위**라 공용 GPU 서버 IP 는 자주 소진된다(429)."""
+    cache = {q: [dataclasses.asdict(r) for r in OpenAlexBackend().search(q, limit=limit)] for _, q in TOPICS}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cache, f, ensure_ascii=False)
+    print({q: len(v) for q, v in cache.items()})
+
+
+def cached_search(path: str):
+    cache = json.load(open(path, encoding="utf-8"))
+    return lambda q: [PaperRecord(**{**r, "authors": tuple(r["authors"])}) for r in cache.get(q, [])]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="Qwen/Qwen3.8-27B")
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=5)
+    ap.add_argument("--search-cache", help="save_search 로 만든 검색 결과 JSON(없으면 OpenAlex 실시간)")
     a = ap.parse_args()
+    search = cached_search(a.search_cache) if a.search_cache else (lambda q: OpenAlexBackend().search(q, limit=a.limit))
     llm = local_llm(a.model)
     approve = lambda node, ctx: node.gate          # 최종 승인은 승인, 차단 검토는 거절
     logs = []
@@ -64,7 +81,7 @@ def main() -> None:
         for topic, query in TOPICS:
             t0 = time.time()
             res = run_wf_a(topic, llm=llm, approve=approve, model_id=a.model,
-                           search_fn=lambda _t, q=query: OpenAlexBackend().search(q, limit=a.limit))
+                           search_fn=lambda _t, q=query: search(q))
             v = res.ctx.get("verify") or {}
             rec = {"topic": topic, "status": res.status, "rate": automation_rate(res.log), "log": res.log,
                    "decision": v.get("decision"), "vcr": v.get("vcr"), "regenerations": v.get("regenerations"),
