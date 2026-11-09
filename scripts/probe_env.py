@@ -142,7 +142,7 @@ def main() -> None:
             print("       CUDA_VISIBLE_DEVICES=1 python -m compliance_gateway.train.grpo --vllm-mode server")
         else:
             print("     권장: GRPO 는 colocate 모드 (--vllm-mode colocate)")
-        print("\n  다음 실행: bash scripts/run_m1_h100.sh")
+        print("\n  다음 실행: bash scripts/ainexus_setup.sh (README → GPU 실행)")
     elif gpu["available"]:
         print(f"  {WARN} GPU 는 있으나 학습 스택 미설치")
         print('     실행: pip install -e ".[train]"')

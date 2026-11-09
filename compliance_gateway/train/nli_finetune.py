@@ -78,8 +78,28 @@ def load_kornli(n: int = 100_000, seed: int = 0) -> list:
             for i, (p, h, l) in enumerate(zip(sub["premise"], sub["hypothesis"], sub["label"]))]
 
 
+def load_jsonl(path: str, split: str) -> list:
+    """증류 학습셋(scripts/distill.py label) → NLIExample. 문서 해시로 dev 5% 를 뗀다."""
+    import hashlib
+    import json
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    lab = {"entail": "SUPPORT", "neutral": "NEI", "contradict": "CONTRADICT"}
+    out = []
+    for i, line in enumerate(open(path, encoding="utf-8")):
+        r = json.loads(line)
+        is_dev = int(hashlib.md5(r["doc"].encode()).hexdigest(), 16) % 20 == 0
+        if is_dev == (split != "train"):
+            out.append(NLIExample(claim=r["hypothesis"], evidence=r["premise"], label=lab[r["label"]],
+                                  claim_id=i, doc_id=-3))
+    return out
+
+
 def prepare_examples(split: str, data_dir=None, include_nei: bool = False, data: str = "scifact") -> list:
-    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue | klue+kornli."""
+    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue | klue+kornli | <jsonl 경로>."""
+    if data.endswith(".jsonl"):
+        return load_jsonl(data, split)
     if data.startswith("klue"):
         ex = load_klue({"train": "train", "dev": "validation"}.get(split, split))
         # 학습에만 KorNLI 를 더한다 — 검증은 원어민 KLUE dev 로 고정
@@ -215,8 +235,8 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="GPU 없이 데이터·설정 검증")
     ap.add_argument("--labels", type=int, choices=(2, 3), default=3,
                     help="3=NLI 헤드 유지+NEI(기본), 2=SUPPORT/CONTRADICT(덧붙인 주장을 못 잡음)")
-    ap.add_argument("--data", choices=("scifact", "klue", "klue+kornli"), default="scifact",
-                    help="klue = KLUE-NLI 한국어, klue+kornli = + KorNLI 10만(3분류 필요: --labels 3)")
+    ap.add_argument("--data", default="scifact",
+                    help="scifact | klue | klue+kornli | <증류 jsonl 경로> (klue·증류는 --labels 3)")
     a = ap.parse_args()
     cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output, data=a.data,
                             train_split=a.split, eval_split=a.eval_split, num_labels=a.labels)

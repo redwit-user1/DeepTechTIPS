@@ -119,50 +119,30 @@ bash scripts/run_local_ocr.sh /path/to/ocr --write  # 전량 수확·저장
 활용 가능한 공개 데이터셋 카탈로그(용도·라이선스·접근): [`docs/DATASETS.md`](docs/DATASETS.md).
 차단된 소스의 확보 절차(브라우저 에이전트 활용 포함): [`docs/DATA_ACQUISITION.md`](docs/DATA_ACQUISITION.md).
 
-## H100 학습 계획 (KT Cloud AI Nexus)
+## GPU 실행 (KT Cloud AI Nexus · H200 141GB × 2)
 
-~~H100 80GB × 2~~ → 실제 할당은 **H200 141GB × 2** (NIPA 고성능 컴퓨팅 지원사업, Backend.AI 세션 — 아래 AI Train/Serv·teleport 서술은 실제 환경과 다르다.
-실측 환경·SSH 절차는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md) 상단). 컴퓨트는 병목이 아니므로 데이터·평가에 과투자한다.
-로드맵·KPI 매핑·실행 커맨드는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md).
+NIPA 고성능 컴퓨팅 지원사업으로 받은 **Backend.AI 컨테이너 세션**이다(문서 초안의 "H100 × 2 / AI Train·Serv / teleport" 가정은 틀렸다).
+환경 실측·제약은 [`docs/H100_PLAN.md`](docs/H100_PLAN.md) 상단.
 
-**먼저 환경을 확인한다** — AI Nexus 는 AI Train(학습)과 AI Serv(추론 슬라이싱)를
-합친 플랫폼이라 프로비저닝에 따라 가능한 작업이 다르다.
+1. 웹 UI → 세션 시작: 인터랙티브, **NGC PyTorch 25.03**, 프리셋 `H200-141G-1GPU`, 폴더 **`research-data-analysis`** 마운트
+2. 세션 앱 → **SSH/SFTP** → `id_container` 받기. 첫 연결이 끊기면 아이콘을 **한 번 더** 눌러 데몬을 깨운다
+   (호스트 `proxy{1,2,3}.ainexus.ktcloud.com`·포트가 세션마다 다르다)
+3. 레포는 git 추적 파일만 tar 로 보낸다(`git ls-files | tar -czf - -T -`) — 고객 데이터(`data/`, `*.csv`)는 보내지 않는다
+4. `bash repo/scripts/ainexus_setup.sh` — NAS venv + Qwen3.8-27B
+5. **GPU util 6시간 평균 1% 미만이면 세션이 회수된다.** 체크포인트는 NAS 폴더에 둔다. 끝나면 세션 종료(공용 GPU)
 
 ```bash
-python scripts/probe_env.py                              # GPU·FP8·스택·데이터 자동 판정
-python scripts/probe_env.py --endpoint http://<서빙>/v1  # 서빙 엔드포인트도 점검
+# 인코더 NLI 학습 (시스템 파이썬)
+python -m compliance_gateway.train.nli_finetune --data klue --labels 3 --base MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7
+# 한국어 연구노트 평가 (data/labeling/kr_psg_eval.jsonl · kr_hard_eval.jsonl)
+python -m compliance_gateway.eval.kr_nli <평가셋> --nli cascade            # 규칙→DeBERTa→Qwen
+. venv/bin/activate && python -m compliance_gateway.eval.kr_nli <평가셋> --llm Qwen/Qwen3.8-27B
+# 캐스케이드 비용-성능 (kr_nli --dump 결과로)
+python scripts/cascade_sim.py --scores data/scores --enc deberta --llm qwen2
 ```
 
-> 💡 **이 개발 세션 자체를 H100 으로 옮길 수 있다**(`claude --teleport`). 관리형 VM 은
-> GPU 가 없고 KT Cloud egress 도 막혀 있으므로, 옮기면 두 제약이 한 번에 풀린다.
-> 절차는 [`docs/H100_PLAN.md`](docs/H100_PLAN.md#이-세션을-h100-으로-옮기기-teleport--가장-확실한-방법).
-
-**경로 A — AI Train(학습 컨테이너)이 있는 경우**
-```bash
-bash scripts/setup_h100.sh                              # 패키지·데이터·학습스택·진단
-bash scripts/run_m1_h100.sh                             # 진단→기준선→NLI 파인튜닝→EN/KR 재측정
-torchrun --nproc_per_node 2 -m compliance_gateway.train.sft   # 도메인 LoRA (2 GPU DDP)
-python -m compliance_gateway.train.dpo --vcr-accept 0.7 # VCR 정렬
-python -m compliance_gateway.train.reward_check --dataset mixed   # ⚠️ GRPO 전 필수 관문
-python -m compliance_gateway.train.grpo --vllm-mode server  # RLVR (VCR = 보상함수, FP8)
-```
-
-> **GRPO 전에 `reward_check` 를 반드시 통과시킬 것.** RL 은 보상이 틀려도 조용히
-> 잘못된 목표를 최적화한다. 이 게이트는 분리도·축퇴·보상해킹·구성요소 생존을 점검하며,
-> 실제로 `source_exist` 상수 버그와 도메인 간 보상 비교불가 문제를 잡아냈다.
-> → [`docs/UPSTREAM_TECH.md`](docs/UPSTREAM_TECH.md)
-
-**경로 B — AI Serv(추론 서빙)만 있는 경우** — 학습은 못 하지만 Gateway 가
-Model-Agnostic 이라 서빙 모델을 붙여 KPI 측정이 가능하다.
-```bash
-python -m compliance_gateway.eval.external --split dev \
-    --nli-endpoint http://<서빙>/v1 --nli-model <모델ID> --sweep
-```
-
-최신 업스트림(Unsloth/TRL-vLLM/인용검증) 조사·적용 기록과 측정치: [`docs/UPSTREAM_TECH.md`](docs/UPSTREAM_TECH.md).
-
-**적용 성과** — 3단계 인용 검증 도입으로 서지 변조 탐지 **9.1% → 100%**,
-위반탐지 F1 **0.766 → 0.982** (오탐 증가 없음).
+**SLM 정렬(SFT/DPO/GRPO, 베이스 Qwen3.8-27B)** 은 검증기가 사람 검수(κ ≥ 0.8)를 통과한 뒤 착수한다 —
+검증기가 틀리면 정렬이 틀린 목표를 학습한다. GRPO 전 `reward_check` 관문은 그대로 유효하다.
 
 ## 빠른 시작
 

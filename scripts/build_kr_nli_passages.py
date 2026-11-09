@@ -25,6 +25,7 @@ from pathlib import Path
 from compliance_gateway.data.ocr.claim_evidence import NUM_UNIT, NOT_CLAIM, is_claim, sentences
 from compliance_gateway.data.ocr.csv_source import iter_rows
 from compliance_gateway.data.ocr.deidentify import audit, deidentify
+from compliance_gateway.data.ocr.sensitive import sensitive_signals
 
 _HANGUL = re.compile(r"[가-힣]")
 PLAN = re.compile(r"목적|목표|계획|예정|하고자|위하여|위해서|할 것|제안|요청|필요하다")
@@ -66,6 +67,8 @@ def main() -> None:
         key = nid(row.note_id)
         if key % a.stride != a.residue or key in found:
             continue
+        if sensitive_signals(row.text):      # 민감정보(건강) 문서는 쓰지 않는다
+            continue
         ss = sentences(row.text)
         for i, s in enumerate(ss):
             if result_sentence(s):
@@ -83,7 +86,7 @@ def main() -> None:
             if n >= a.docs:
                 break
             p, c = (deidentify(x).text for x in found[k])
-            if audit(p) or audit(c):
+            if audit(p) or audit(c) or sensitive_signals(p):
                 drop += 1
                 continue
             f.write(json.dumps({"id": f"{k:014x}", "doc": f"{k:014x}", "passage": p, "claim": c},

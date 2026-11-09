@@ -43,7 +43,8 @@ def sensitive_signals(text: str) -> list[str]:
     out = []
     if ADVERSE.search(text or ""):
         out.append("adverse")
-    if SUBJECT.search(text or "") and HEALTH.search(text or ""):
+    # 건강 표지가 더 드물다 — 먼저 보고 없으면 대상 표지는 검사하지 않는다(전수 처리 속도)
+    if HEALTH.search(text or "") and SUBJECT.search(text or ""):
         out.append("subject_health")
     return out
 
