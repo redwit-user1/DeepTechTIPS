@@ -54,6 +54,9 @@ class GenerationRequest:
     # 인용이 대조될 신뢰 출처 컨텍스트(RAG로 검색된 근거 텍스트)
     grounding: tuple[str, ...] = ()
     domain: str = "pharma_bio"        # 초기 집중 도메인
+    # 주면 규정 온톨로지의 해당 문서 유형 조항을 점검한다(labnote | report). 생성 전 제약은
+    # ontology.checks.constraints_for(doc_type) 를 시스템 프롬프트에 넣는다.
+    doc_type: Optional[str] = None
 
 
 @dataclass

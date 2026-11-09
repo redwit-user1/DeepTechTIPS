@@ -126,7 +126,7 @@ class ComplianceGateway:
 
     # ---- 07 블록체인 감사추적 (해시 생성) ------------------------------
     def _audit_hash(self, req: GenerationRequest, vcr: VCRBreakdown,
-                    unsupported: Optional[list] = None) -> str:
+                    unsupported: Optional[list] = None, findings: Optional[list] = None) -> str:
         """감사로그 해시. 실제 배포에서는 GOONO 시점인증(허가형 블록체인)에 기록.
 
         문장 게이팅을 켰으면 그 판정 근거(뒷받침 안 된 문장·점수)도 불변 기록에 넣는다.
@@ -139,6 +139,8 @@ class ComplianceGateway:
         }
         if unsupported is not None:
             payload["unsupported_sentences"] = unsupported
+        if findings is not None:
+            payload["regulation_findings"] = findings
         blob = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
         return hashlib.sha256(blob).hexdigest()
 
@@ -190,9 +192,18 @@ class ComplianceGateway:
             )
         )
 
-        decision = self._decide(vcr.vcr, regenerations, sentences_ok=not unsupported)
+        findings: list[str] = []
+        if req.doc_type:
+            # 규정 온톨로지 Post-Gen 점검. AI 출력은 서명하지 않으므로(사람이 채운다) 서명 점검은 뺀다.
+            from compliance_gateway.ontology.checks import check_document
+            findings = check_document(req.response, req.doc_type, skip=("onto.signature",))
+            reports.append(StageReport(stage="regulation_checks", ok=not findings,
+                                       detail={"doc_type": req.doc_type, "findings": findings}))
+
+        decision = self._decide(vcr.vcr, regenerations, sentences_ok=not unsupported and not findings)
         audit_hash = self._audit_hash(
-            req, vcr, unsupported if self.sentence_threshold is not None else None)
+            req, vcr, unsupported if self.sentence_threshold is not None else None,
+            findings if req.doc_type else None)
         reports.append(
             StageReport(stage="audit_trail", ok=True, detail={"audit_hash": audit_hash})
         )
