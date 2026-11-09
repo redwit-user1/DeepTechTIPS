@@ -44,6 +44,14 @@ def run(cfg: SFTConfig, max_steps: int = -1) -> None:
     from trl import SFTConfig as TRLSFTConfig
     from trl import SFTTrainer
 
+    try:
+        # ponytail: trl 1.17 융합 LM 헤드의 addmm(out_dtype=fp32) 를 NGC 25.11 torch 가 bf16 입력과 함께 거부한다
+        # ("self and mat2 must have the same dtype") → trl 자체의 fp32 폴백 경로로. trl 이 고치면 지운다.
+        import trl.kernels.chunked_logprob as _cl
+        _cl._MM_OUT_DTYPE = False
+    except ImportError:
+        pass
+
     from compliance_gateway.train.loader import apply_lora, load_model_and_tokenizer
 
     model, tokenizer, unsloth_used = load_model_and_tokenizer(
