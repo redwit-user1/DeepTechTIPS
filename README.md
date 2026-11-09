@@ -75,8 +75,9 @@ python -m compliance_gateway.eval.benchmark --split train   # docs/EVAL_SCIFACT.
 python -m compliance_gateway.eval.external --split dev --sweep     # docs/EVAL_EXTERNAL.md
 
 # (D) 국내 R&D 실데이터 — 국내 기관 실제 프로토콜 원문, 변조 없음
-python -m compliance_gateway.data.korean.real_eval                 # docs/DATASET_KR.md
+python -m compliance_gateway.data.korean.real_eval --full-record   # 근거 = 레코드 전체(단락만 쓰면 근거 누락으로 과소평가)
 python -m compliance_gateway.eval.korean --real --threshold 0.64
+# 연구노트 기반 한국어 판정 평가(라벨: Claude, 사람 검수 아님) — 아래 '판정 캐스케이드' 절의 kr_nli 참고
 
 # (D-2) 국내 R&D 합성셋 (회귀 테스트 전용)
 python -m compliance_gateway.data.korean.build_kr

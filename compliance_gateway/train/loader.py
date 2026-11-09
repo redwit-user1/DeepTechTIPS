@@ -40,12 +40,15 @@ def load_model_and_tokenizer(
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        torch_dtype=torch.bfloat16 if bf16 else torch.float16,
-        device_map="auto",
-        trust_remote_code=True,
-    )
+    kw = dict(torch_dtype=torch.bfloat16 if bf16 else torch.float16, device_map="auto", trust_remote_code=True)
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_id, **kw)
+    except (ValueError, KeyError):
+        # Qwen3.5+ (Qwen3.8-27B 포함)는 비전 통합 클래스(Qwen3_5ForConditionalGeneration)라
+        # CausalLM 자동 매핑이 없을 수 있다. 텍스트만 학습해도 이 클래스로 로드한다.
+        # 주의(미검증): LoRA target_modules 가 비전 타워의 gate/up/down_proj 에도 붙을 수 있다 — 첫 학습 때 확인.
+        from transformers import AutoModelForImageTextToText
+        model = AutoModelForImageTextToText.from_pretrained(model_id, **kw)
     print(f"[loader] HF 경로 사용: {model_id}")
     return model, tokenizer, False
 

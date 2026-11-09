@@ -26,7 +26,10 @@ PROMPT = (
 
 class LLMJudgeNLI:
     def __init__(self, model_name: str = "Qwen/Qwen3.8-27B", device: str = "cuda",
-                 batch_size: int = 16, max_chars: int = 2000) -> None:
+                 batch_size: int = 16, max_chars: int = 8000) -> None:
+        # 근거가 잘리면 뒤쪽 근거를 못 봐 '미지지'로 오판한다(누출이 아니라 오탐 쪽). 2000 자는
+        # 연구노트 한 페이지도 잘랐다. Qwen3.8 문맥은 충분 — 메모리가 모자라면 batch_size 를 줄인다.
+        # 게이트웨이 문장 게이팅은 근거를 800 자 창(pipeline.WINDOW_CHARS)으로 이미 나눠 넣는다.
         self.model_name, self.device = model_name, device
         self.batch_size, self.max_chars = batch_size, max_chars
         self._m = self._tok = None

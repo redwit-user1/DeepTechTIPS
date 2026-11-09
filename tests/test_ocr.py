@@ -119,5 +119,11 @@ def test_deidentify_names_next_to_titles():
     for t in ("홍길동 변리사가 검토함", "변리사 홍길동 의견", "책임연구원 이수진 확인", "장혜식 교수님", "이영희 씨 요청"):
         assert deidentify(t).text != t, t
     for t in ("참여 연구원 3명", "선임연구원이 확인", "한국화학연구원 협력", "대표 이사의 승인",
-              "연구소장 승인", "원장님 결재", "고객님의 요청", "공동대표자"):
+              "연구소장 승인", "원장님 결재", "고객님의 요청", "공동대표자",
+              "연구원 모집을 시작", "연구원 채용 공고", "연구원 이하의 인력"):
         assert deidentify(t).text == t, t
+    # 복성 4음절·조사 붙은 이름(Codex 교차검증 지적), 가명 재치환 없음
+    for t in ("연구원 남궁민준 확인", "연구원 김민준과 협의", "연구원 남궁민준과 협의"):
+        out = deidentify(t)
+        assert "민준" not in out.text and out.passes == 1, out.text
+    assert deidentify("연구원 김민준과 협의").text.count("_") == 1

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import json
 from typing import Optional
 
@@ -26,6 +27,38 @@ from compliance_gateway.vcr.hallucination import DOIResolver
 from compliance_gateway.vcr.reward import compute_vcr
 from compliance_gateway.vcr.source_exist import extract_citations
 from compliance_gateway.vcr.source_match import NLIFn
+
+
+_CONTENT = re.compile(r"[가-힣A-Za-z]")
+WINDOW_CHARS = 800      # 인코더 512 토큰 안에 들어가는 근거 창(한국어 ≈ 1.5자/토큰, 문장 겹침 1)
+
+
+def _split_all(text: str) -> list[str]:
+    """응답을 **빠짐없이** 문장으로 나눈다.
+
+    학습셋용 `sentences()` 는 15~400자만 남겨서, 게이팅에 쓰면 "수율은 18%다." 같은 짧은 주장과
+    긴 문장이 검사 없이 통과했다. 여기서는 글자가 있는 조각을 모두 검사한다.
+    """
+    from compliance_gateway.data.ocr.claim_evidence import _SPLIT
+
+    parts = [re.sub(r"\s+", " ", p or "").strip() for p in _SPLIT.split(text or "")]
+    return [p for p in parts if len(p) >= 4 and _CONTENT.search(p)] or ([text.strip()] if text.strip() else [])
+
+
+def _windows(evidence: str, size: int = WINDOW_CHARS) -> list[str]:
+    """긴 근거를 문장 경계로 겹치게 자른다. 인코더가 512 토큰에서 잘라 뒤쪽 근거를 못 보던 문제."""
+    if len(evidence) <= size:
+        return [evidence]
+    sents = _split_all(evidence)
+    out, cur = [], []
+    for s in sents:
+        if cur and len(" ".join(cur + [s])) > size:
+            out.append(" ".join(cur))
+            cur = cur[-1:]                     # 한 문장 겹침 — 경계에 걸친 근거를 놓치지 않게
+        cur.append(s)
+    if cur:
+        out.append(" ".join(cur))
+    return out
 
 
 class ComplianceGateway:
@@ -113,11 +146,10 @@ class ComplianceGateway:
         """근거가 뒷받침하지 않는 응답 문장과 점수. 임계값 미설정·근거 없음이면 검사하지 않는다."""
         if self.sentence_threshold is None or not req.grounding:
             return []
-        from compliance_gateway.data.ocr.claim_evidence import sentences
-
+        chunks = [c for g in req.grounding for c in _windows(g)]
         out = []
-        for sent in sentences(req.response) or [req.response]:
-            score = max(self.nli_fn(g, sent) for g in req.grounding)
+        for sent in _split_all(req.response):
+            score = max(self.nli_fn(c, sent) for c in chunks)
             if score < self.sentence_threshold:
                 out.append({"sentence": sent, "score": round(float(score), 4)})
         return out

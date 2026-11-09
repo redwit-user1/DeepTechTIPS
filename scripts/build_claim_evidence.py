@@ -47,6 +47,7 @@ from compliance_gateway.data.ocr.claim_evidence import (
 LEAK_MAX = 0.60
 from compliance_gateway.data.ocr.csv_source import iter_rows
 from compliance_gateway.data.ocr.deidentify import audit, deidentify
+from compliance_gateway.data.ocr.sensitive import sensitive_signals
 
 
 def nid(s: str) -> int:
@@ -71,6 +72,7 @@ def main() -> None:
 
     rng = random.Random(a.seed)
     notes: dict[int, NoteBuffer] = {}
+    bad: set[int] = set()          # 민감(건강) 행이 하나라도 있는 문서 — 통째로 뺀다
     n = kept = 0
 
     for row in iter_rows(Path(a.csv_path)):
@@ -79,9 +81,11 @@ def main() -> None:
         if key % a.doc_stride:
             continue
         kept += 1
+        if sensitive_signals(row.text):
+            bad.add(key)
         notes.setdefault(key, NoteBuffer()).add(row.text)
 
-    usable = [k for k, v in notes.items() if v.usable]
+    usable = [k for k, v in notes.items() if k not in bad and v.usable]
     rng.shuffle(usable)
 
     # 다른 문서 근거의 역색인 — neutral 을 **어휘가 겹치는** 근거에서 고르기 위함.

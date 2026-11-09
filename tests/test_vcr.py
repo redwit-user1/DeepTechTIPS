@@ -65,7 +65,11 @@ def test_unit_swaps():
     # 값은 같고 단위만 바뀐 수치(유형 C 변형)를 잡고, 환산·비율 분모는 통과시킨다
     from compliance_gateway.vcr.hallucination import unit_swaps
     assert unit_swaps("10 mg 투여", "10 ug 투여") == ["10mg"]
-    assert unit_swaps("20 mM 처리", "20 uM 처리") == ["20mm"]
+    assert unit_swaps("20 mM 처리", "20 uM 처리") == ["20mM"]
+    assert unit_swaps("60 mL 주입", "60 uL 주입") == ["60mL"]
+    assert unit_swaps("100 kWh 소모", "100 Wh 소모") == ["100kWh"]
+    assert unit_swaps("5 초 유지", "5 sec 유지") == []         # 같은 단위의 다른 표기
+    assert unit_swaps("10 mM 용액", "10 mm 간격") == []        # 농도와 길이는 다른 차원
     assert unit_swaps("1 g 투여", "1,000 mg 투여") == []
     assert unit_swaps("1분당 60 증가", "1초당 1 증가") == []
 

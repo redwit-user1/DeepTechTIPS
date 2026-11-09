@@ -78,13 +78,27 @@ def _type_c(text: str, grounding: tuple[str, ...]) -> float:
     return tampered / checked
 
 
-# 같은 차원(질량·농도·부피·시간·길이)의 단위 — 값은 같은데 단위만 바뀌면 크기가 10^3 배씩 달라진다.
-_UNIT_FAMILY = {u.lower(): f for f, us in {
-    "mass": ("ng", "ug", "µg", "μg", "㎍", "mg", "g", "kg"),
-    "conc": ("nm", "um", "µm", "μm", "mm", "m"),
-    "vol": ("ul", "µl", "μl", "ml", "㎖", "l"),
-    "time": ("sec", "초", "min", "분", "hr", "시간", "일", "주", "개월"),
-    "len": ("㎛", "cm"),
+# 단위 표기 정규화 — 대소문자는 살린다(mm 길이 ≠ mM 농도, nm ≠ nM). 같은 단위의 다른 표기
+# (ug·μg·㎍, 초·sec)는 하나로 모은다. 처음엔 소문자로 뭉개서 mm/mM 을 같은 단위로 보고,
+# "5 sec"↔"5 초" 를 단위 바꿈으로 오판했다.
+_ALIAS = {"ug": "µg", "μg": "µg", "㎍": "µg", "uM": "µM", "μM": "µM", "um": "µm", "μm": "µm", "㎛": "µm",
+          "uL": "µL", "μL": "µL", "ml": "mL", "㎖": "mL", "sec": "s", "초": "s", "분": "min",
+          "hr": "h", "시간": "h", "일": "d", "주": "wk", "개월": "mo"}
+
+
+def _canon(u: str) -> str:
+    return _ALIAS.get(u, u)
+
+
+# 같은 차원의 단위 — 값은 같은데 단위만 바뀌면 크기가 10^3 배씩 달라진다.
+_UNIT_FAMILY = {u: f for f, us in {
+    "mass": ("ng", "µg", "mg", "g", "kg"),
+    "conc": ("nM", "µM", "mM", "M"),
+    "vol": ("µL", "mL", "L"),
+    "len": ("nm", "µm", "mm", "cm"),
+    "time": ("s", "min", "h", "d", "wk", "mo"),
+    "energy": ("Wh", "kWh"),
+    "power": ("W", "kW"),
 }.items() for u in us}
 
 
@@ -95,16 +109,15 @@ def unit_swaps(text: str, evidence: str) -> list[str]:
     오히려 '일치'로 보이고, 인코더 NLI 도 놓친다(한국어 어려운 평가셋: 통과 점수 0.27~0.41).
     단위 환산(1,000 mg → 1 g)은 값이 바뀌므로 걸리지 않는다.
 
-    ponytail: nm/µm 처럼 길이·농도가 겹치는 표기는 농도로 본다 — 오탐이 나면 문맥 판정으로 교체.
     """
     from compliance_gateway.data.ocr.claim_evidence import NUM_UNIT
 
     ev: dict[str, set[str]] = {}
     for v, u in NUM_UNIT.findall(evidence or ""):
-        ev.setdefault(v, set()).add(u.lower())
+        ev.setdefault(v, set()).add(_canon(u))
     out = []
     for v, u in NUM_UNIT.findall(text or ""):
-        u = u.lower()
+        u = _canon(u)
         if v == "1":   # "1초당 → 1분당" 같은 비율 분모 — 단위 바꿈이 아니라 환산이다
             continue
         fam = _UNIT_FAMILY.get(u)

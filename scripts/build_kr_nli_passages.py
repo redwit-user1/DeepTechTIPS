@@ -63,11 +63,18 @@ def main() -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
 
     found: dict[int, tuple[str, str]] = {}
+    bad: set[int] = set()
     for row in iter_rows(Path(a.csv_path)):
         key = nid(row.note_id)
-        if key % a.stride != a.residue or key in found:
+        if key % a.stride != a.residue or key in bad:
             continue
-        if sensitive_signals(row.text):      # 민감정보(건강) 문서는 쓰지 않는다
+        # 한 행이라도 민감(건강)하면 **문서 전체**를 뺀다 — 이미 고른 단락이 다른 페이지여도.
+        # 처음엔 고른 행만 봐서, 민감 페이지가 뒤에 있는 문서가 남았다(Codex 교차검증 지적).
+        if sensitive_signals(row.text):
+            bad.add(key)
+            found.pop(key, None)
+            continue
+        if key in found:
             continue
         ss = sentences(row.text)
         for i, s in enumerate(ss):

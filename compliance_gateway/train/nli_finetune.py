@@ -98,6 +98,9 @@ def load_jsonl(path: str, split: str) -> list:
 
 def prepare_examples(split: str, data_dir=None, include_nei: bool = False, data: str = "scifact") -> list:
     """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue | klue+kornli | <jsonl 경로>."""
+    if not include_nei and data != "scifact":
+        # klue·kornli·증류 jsonl 은 neutral(NEI)을 담는다 — 2분류 라벨표에 없어 학습 중 KeyError 가 났다
+        raise ValueError(f"data={data} 는 NEI 를 포함한다 — --labels 3 을 쓰세요(2분류는 scifact 전용)")
     if data.endswith(".jsonl"):
         return load_jsonl(data, split)
     if data.startswith("klue"):

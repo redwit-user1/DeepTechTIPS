@@ -89,3 +89,25 @@ def test_cascade_routes_only_ambiguous_to_llm():
     assert llm_calls == ["b 문장"] and c.llm_calls == 1
     # 근거에 없는 숫자(근사·환산·변조)는 인코더 확신과 무관하게 LLM 으로
     assert c("수율 18.7 % 증가", "c 수율 약 19 % 증가") == 0.7 and c.llm_calls == 2
+
+
+def test_sentence_gating_checks_short_and_long_sentences_and_long_grounding():
+    # 학습셋용 sentences()(15~400자)로 나누면 짧은 주장·긴 문장이 검사 없이 통과했다
+    from compliance_gateway.models import GatewayDecision, GenerationRequest
+    from compliance_gateway.pipeline import ComplianceGateway, _split_all, _windows
+
+    assert "수율은 18%다" in _split_all("수율은 18%다. 다음 문장.")
+    long_s = "가" * 450 + "다"
+    assert any(len(s) > 400 for s in _split_all(long_s + ". 끝 문장이다."))
+    # 근거 뒤쪽(창 2 이상)에만 있는 사실도 뒷받침으로 찾는다
+    ground = ("배경 설명 문장이다. " * 120) + "최종 수율은 18.7 % 였다."
+    assert len(_windows(ground)) > 1
+    import re
+    nums = lambda t: re.findall(r"\d+(?:\.\d+)?", t)
+    fake = lambda p, h: 0.9 if nums(h) and all(n in nums(p) for n in nums(h)) else 0.0
+    gw = ComplianceGateway(vcr_threshold=0.0, nli_fn=fake, sentence_threshold=0.1)
+    r = gw.evaluate(GenerationRequest(query="q", response="최종 수율은 18.7 % 였다.", grounding=(ground,)))
+    assert r.decision is GatewayDecision.PASS
+    short_bad = gw.evaluate(GenerationRequest(query="q", response="수율은 30%다.", grounding=("수율 18.7 %",)),
+                            regenerations=3)
+    assert short_bad.decision is GatewayDecision.BLOCK

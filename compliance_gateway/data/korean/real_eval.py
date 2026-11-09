@@ -150,10 +150,11 @@ def build_registry(protocols: list[dict]) -> LocalRegistry:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="data/synth/kr_real")
+    ap.add_argument("--full-record", action="store_true", help="근거에 필드 레코드 전체 포함(판정 가능한 셋)")
     a = ap.parse_args()
 
     protocols = load_protocols()
-    items, pairs = build(protocols)
+    items, pairs = build(protocols, full_record=a.full_record)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     for name, rows in (("kr_real_eval.jsonl", items), ("kr_real_dpo.jsonl", pairs)):

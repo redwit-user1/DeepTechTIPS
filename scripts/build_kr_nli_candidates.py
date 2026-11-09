@@ -27,6 +27,7 @@ from pathlib import Path
 from compliance_gateway.data.ocr.claim_evidence import NoteBuffer, supports, words
 from compliance_gateway.data.ocr.csv_source import iter_rows
 from compliance_gateway.data.ocr.deidentify import audit, deidentify
+from compliance_gateway.data.ocr.sensitive import sensitive_signals
 
 _HANGUL = re.compile(r"[가-힣]")
 
@@ -57,12 +58,16 @@ def main() -> None:
 
     rng = random.Random(a.seed)
     notes: dict[int, NoteBuffer] = {}
+    bad: set[int] = set()          # 민감(건강) 행이 하나라도 있는 문서 — 통째로 뺀다
     for row in iter_rows(Path(a.csv_path)):
         key = nid(row.note_id)
         if key % a.stride == a.residue:
+            if sensitive_signals(row.text):
+                bad.add(key)
             notes.setdefault(key, NoteBuffer()).add(row.text)
 
-    usable = [k for k, v in notes.items() if v.usable and any(korean(c) for c in v.claims)]
+    usable = [k for k, v in notes.items()
+              if k not in bad and v.usable and any(korean(c) for c in v.claims)]
     rng.shuffle(usable)
     index: dict[str, list[tuple[int, int]]] = {}
     for k in usable:
@@ -79,14 +84,15 @@ def main() -> None:
         claims = [c for c in nb.claims if korean(c)]
         rng.shuffle(claims)
         for claim in claims:
-            same = [e for e in nb.evidence if supports(claim, e)]
+            # 중복 행(코퍼스 23%) 때문에 같은 문장이 주장·근거 양쪽에 들어올 수 있다 — 자기 짝짓기 제외
+            same = [e for e in nb.evidence if e != claim and supports(claim, e)]
             hits: Counter[tuple[int, int]] = Counter()
             for w in words(claim):
                 post = index.get(w, ())
                 for kj in (post if len(post) <= 2000 else rng.sample(post, 2000)):
                     if kj[0] != k:
                         hits[kj] += 1
-            other = [kj for kj, c in hits.items() if c >= 2]
+            other = [kj for kj, c in hits.items() if c >= 2 and notes[kj[0]].evidence[kj[1]] != claim]
             if not same or not other:
                 continue
             ok, oj = rng.choice(other)

@@ -79,7 +79,7 @@ def test_kpi_harness_on_seed():
 def test_h100_is_default_profile_with_fp8():
     from compliance_gateway.train.config import DEFAULT_GPU, GRPOConfig, GPU_PROFILES
 
-    assert DEFAULT_GPU == "h100"
+    assert DEFAULT_GPU == "h200"            # 실할당 GPU
     assert GPU_PROFILES["h100"]["fp8_capable"] is True
     assert GPU_PROFILES["a100"]["fp8_capable"] is False
     assert GRPOConfig().fp8 is True          # H100 기본

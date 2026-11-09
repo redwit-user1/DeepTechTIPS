@@ -20,7 +20,7 @@ from typing import Iterable
 # 개인(사람) 대상 — 실험 대상이 사람임을 뜻하는 표지
 SUBJECT = re.compile(
     r"환자|피험자|대상자|참여자|수진자|내담자|아동|영아|유아|소아|신생아|남아|여아|아이(?:가|는|의|에게|들)|"
-    r"\d{1,2}\s*세(?!대)\s*(?:남|여|아동|환자)?|\d{1,2}\s*개월\s*(?:된|아|영아)|"
+    r"\d{1,2}\s*세(?![대기트])\s*(?:남|여|아동|환자)?|\d{1,2}\s*개월\s*(?:된|아|영아)|"
     r"(?:남|여)성\s*\d{1,2}\s*세|patient|subject\s*\d|participant|child(?:ren)?\b",
     re.IGNORECASE,
 )
@@ -38,6 +38,18 @@ ADVERSE = re.compile(r"부작용|이상\s*반응|이상\s*사례|중대한\s*이
                      re.IGNORECASE)
 
 
+# 대상 표지 없이도 개인 병력으로 읽히는 서술 — 질환명과 임상 동사가 가까이 붙는다("홍길동은 당뇨 진단 후 투약").
+# SUBJECT 가 없으면 놓치던 경우(Codex 교차검증 지적). 동물·세포·치료제 개발 맥락은 뺀다.
+_DISEASE = (r"당뇨|고혈압|고지혈증|천식|우울증|공황\s*장애|불안\s*장애|조현병|치매|뇌졸중|심근경색|협심증|"
+            r"간염|결핵|아토피|ADHD|자폐|파킨슨|알츠하이머|관절염|디스크")
+CLINICAL = re.compile(rf"(?:{_DISEASE})[^.\n]{{0,15}}?(?:진단|투약|처방|복용|입원|수술|병력)"
+                      rf"|(?:진단|병력)[^.\n]{{0,8}}?(?:{_DISEASE})", re.IGNORECASE)
+# 10만 행 표본 12건 중 진단기기·키트 개발 서술이 절반 — 문서를 빼는 쪽이라 오탐은 손실만 작다
+NONHUMAN = re.compile(r"마우스|생쥐|랫드|래트|동물|세포|모델|유발|치료제|후보\s*물질|신약|in\s*vitro|키트|"
+                      r"진단\s*(?:기기|용|시약|기술|장비|모니터링)"
+                      r"|\bmice\b|\bmouse\b|\brats?\b|\bcells?\b", re.IGNORECASE)
+
+
 def sensitive_signals(text: str) -> list[str]:
     """민감 사유 목록(비면 통과)."""
     out = []
@@ -46,6 +58,8 @@ def sensitive_signals(text: str) -> list[str]:
     # 건강 표지가 더 드물다 — 먼저 보고 없으면 대상 표지는 검사하지 않는다(전수 처리 속도)
     if HEALTH.search(text or "") and SUBJECT.search(text or ""):
         out.append("subject_health")
+    elif CLINICAL.search(text or "") and not NONHUMAN.search(text or ""):
+        out.append("clinical")
     return out
 
 
@@ -63,6 +77,12 @@ def _demo() -> None:
     assert sensitive_signals("환자 검체를 1:100 희석 후 염색") == ["subject_health"]
     assert sensitive_signals("43세 운동 후 허리 통증 지속") == ["subject_health"]
     assert not sensitive_signals("2세대 배터리 셀의 진단 알고리즘 정확도 95%"), "1세대·2세대는 나이가 아니다"
+    assert not sensitive_signals("3세트 반복 후 장비 진단 결과 정상"), "세트는 나이가 아니다"
+    assert not sensitive_signals("15세기 문헌의 질병 기록 분석"), "세기는 나이가 아니다"
+    assert sensitive_signals("홍길동은 당뇨 진단 후 투약 중") == ["clinical"]
+    assert sensitive_signals("고혈압 병력 있음, 약 복용") == ["clinical"]
+    assert not sensitive_signals("당뇨 유발 마우스에 후보물질 투약")
+    assert not sensitive_signals("당뇨 치료제 후보물질 스크리닝 및 처방 가능성 검토")
     # 세포·동물 실험, 공정 측정은 통과
     assert not sensitive_signals("HeLa 세포에 10 uM 처리 후 생존율 62% 감소")
     assert not sensitive_signals("마우스 투여군의 체중 변화는 없었다")

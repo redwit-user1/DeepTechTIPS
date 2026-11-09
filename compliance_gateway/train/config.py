@@ -20,13 +20,13 @@ BASE_MODELS = {
     "qwen-small": "Qwen/Qwen3.5-9B",   # 2026-02, 9.7B. 경량 배포·빠른 실험
 }
 
-# GPU 프로파일 — 환경에 맞춰 배치·정밀도 기본값을 잡는다.
+# GPU 프로파일 — validate() 가 FP8 가능 여부를 본다. (배치 값은 쓰이지 않아 지웠다 — 배치는 각 Config 에)
 GPU_PROFILES = {
-    "h200": {"bf16": True, "fp8_capable": True, "sft_batch": 12, "dpo_batch": 6, "max_seq": 4096},  # 141GB, 실할당 GPU
-    "h100": {"bf16": True, "fp8_capable": True, "sft_batch": 8, "dpo_batch": 4, "max_seq": 4096},
-    "a100": {"bf16": True, "fp8_capable": False, "sft_batch": 4, "dpo_batch": 2, "max_seq": 2048},
+    "h200": {"bf16": True, "fp8_capable": True},   # 141GB, 실할당 GPU(NIPA AI Nexus)
+    "h100": {"bf16": True, "fp8_capable": True},
+    "a100": {"bf16": True, "fp8_capable": False},
 }
-DEFAULT_GPU = "h100"
+DEFAULT_GPU = "h200"
 
 # NLI 백엔드 후보 (규정위반·출처 KPI 직결)
 NLI_MODELS = {
@@ -59,8 +59,9 @@ class SFTConfig:
     gpu: str = DEFAULT_GPU
     epochs: int = 2
     lr: float = 2e-4
-    per_device_batch_size: int = 8      # H100 80GB 기준(A100 은 4)
-    grad_accum: int = 4
+    # Qwen3.8-27B(bf16 가중치 54GB) · H200 141GB 기준 보수값. 7B 시절 8×4 는 OOM 위험 — 실측 후 올릴 것.
+    per_device_batch_size: int = 2
+    grad_accum: int = 16                # 유효 배치 32 유지
     max_seq_len: int = 4096             # H100 여유 메모리 활용
     bf16: bool = True
     # Unsloth 백엔드: 학습 가속 + VRAM 절감(장문맥 3배 빠름/30% 절감).
@@ -83,8 +84,8 @@ class DPOConfig:
     epochs: int = 1
     lr: float = 5e-6
     beta: float = 0.1                          # DPO 온도
-    per_device_batch_size: int = 4             # H100 80GB 기준(A100 은 2)
-    grad_accum: int = 4
+    per_device_batch_size: int = 1             # 27B·H200 보수값(정책+참조 순전파) — 실측 후 조정
+    grad_accum: int = 16
     max_seq_len: int = 4096
     bf16: bool = True
     use_unsloth: bool = True
@@ -117,8 +118,8 @@ class GRPOConfig:
     # FP8: Hopper(H100+) 전용. RL 은 생성 비중이 커 FP8 이득이 크다.
     # A100 에서는 반드시 False(미지원 하드웨어).
     fp8: bool = True
-    per_device_batch_size: int = 2             # H100 기준(A100 은 1)
-    grad_accum: int = 8
+    per_device_batch_size: int = 1             # 27B·H200 보수값 — 실측 후 조정
+    grad_accum: int = 16
     max_prompt_len: int = 2048
     max_completion_len: int = 1024
     # 보상 스케일: VCR 은 [0,1]. RLVR 권장은 [-1,1] → 선택적 재스케일.

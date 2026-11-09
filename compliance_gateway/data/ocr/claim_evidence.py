@@ -35,9 +35,9 @@ from dataclasses import dataclass, field
 # 나왔다. 식별자 변조는 수치 변조(환각 유형 C)가 아니므로 반드시 배제한다.
 NUM_UNIT = re.compile(
     r"(?<![A-Za-z0-9-])(\d+(?:\.\d+)?)\s*"
-    r"(℃|°C|%|㎍|μg|ug|mg|kg|g|㎖|mL|L|μM|uM|mM|nM|M|"
-    r"nm|㎛|μm|mm|cm|rpm|hr|min|sec|시간|분|초|일|주|개월|배|명|건|회|"
-    r"ppm|kPa|MPa|GPa|W|kW|V|A|Hz|kHz|㎡|m2|mol|eq|wt%|vol%)"
+    r"(℃|°C|%|㎍|μg|µg|ug|ng|mg|kg|g|㎖|mL|ml|μL|µL|uL|L|μM|µM|uM|mM|nM|M|"
+    r"nm|㎛|μm|µm|um|mm|cm|rpm|hr|min|sec|시간|분|초|일|주|개월|배|명|건|회|"
+    r"ppm|kPa|MPa|GPa|kWh|Wh|W|kW|V|A|Hz|kHz|㎡|m2|mol|eq|wt%|vol%)"
     r"(?![A-Za-z0-9-])"
 )
 # 주장이 아닌 것 — 파일명·커밋 메시지·경로. 실측 샘플에서 claim 으로 잘못 뽑혔다.
@@ -193,6 +193,10 @@ def surface_leak(rows: list[dict]) -> float:
     특징: 내용어 중첩 수(0~3+), 주장과 공유 수치 유무, 근거 수치가 전부 띄어 쓰였는지.
     특징 조합(버킷)마다 다수 라벨을 고른 정확도 = 이 특징들을 쓰는 어떤 분류기보다도 높다.
     3분류 균형셋에서 우연은 33% 다. 1차 셋은 94.9% 였다 — 학습하면 표면을 배운다.
+
+    버킷 다수결을 **같은 데이터에서** 고르므로(표본 내 적합) 실제보다 높게 나온다 — 낮게 나오면
+    '표면으로는 못 맞힌다'는 보수적 증거, 높게 나오면 홀드아웃으로 다시 확인할 것. 버킷이 2×4×2=16개
+    뿐이라 수천 행에서 과적합 여지는 작다.
     """
     from collections import Counter, defaultdict
 

@@ -91,15 +91,25 @@ def main() -> None:
     rows = load(a.scores, a.enc, a.llm)
     docs = sorted({r["doc"] for r in rows})
     fold = {d: i % 2 for i, d in enumerate(docs)}
+    # 배포 기본값(CascadeNLI) — 아래 탐색은 F1 최대라 LLM 호출을 아끼지 않는다
+    from compliance_gateway.nli.cascade import CascadeNLI as C
+    d = (C.LO, C.HI, C.THRESHOLD)
+    print(f"[배포 기본값 {d}]\n  전체   {fmt(run(rows, *d))}")
+    for s in SETS:
+        print(f"  {s:13s} {fmt(run([r for r in rows if r['set'] == s], *d))}")
     for mode, rule in (("enc", False), ("enc", True), ("llm", False), ("llm", True), ("cascade", True)):
         cfg, m = best(rows, mode, rule) or (None, None)
         if not m:
             print(f"{mode:8s} 규칙{'O' if rule else 'X'}: PASS≥90% 운영점 없음"); continue
         per = {s: fmt(run([r for r in rows if r["set"] == s], *cfg, use_rule=rule)) for s in SETS}
-        # 홀드아웃: 단락 절반에서 고른 구성을 나머지 절반에 적용
-        tr = [r for r in rows if fold[r["doc"]] == 0]; te = [r for r in rows if fold[r["doc"]] == 1]
-        c2 = best(tr, mode, rule)
-        ho = fmt(run(te, *c2[0], use_rule=rule)) if c2 else "-"
+        # 홀드아웃: 단락 절반에서 고른 구성을 나머지 절반에 적용 — 양방향 평균(한쪽만 보면 분할 운에 좌우)
+        ms = []
+        for k in (0, 1):
+            tr = [r for r in rows if fold[r["doc"]] == k]; te = [r for r in rows if fold[r["doc"]] != k]
+            c2 = best(tr, mode, rule)
+            if c2:
+                ms.append(run(te, *c2[0], use_rule=rule))
+        ho = fmt({key: sum(m2[key] for m2 in ms) / len(ms) for key in ms[0]}) + f" (2분할 {len(ms)}방향 평균)" if ms else "-"
         print(f"\n[{mode} · 규칙{'O' if rule else 'X'}] 구성(lo,hi,θ)={cfg}\n  전체   {fmt(m)}")
         for s, v in per.items():
             print(f"  {s:13s} {v}")
