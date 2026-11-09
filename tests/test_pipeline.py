@@ -87,5 +87,5 @@ def test_cascade_routes_only_ambiguous_to_llm():
     assert c("근거", "b 문장") == 0.7          # 애매 → LLM
     assert c("10 ug 투여", "b 10 mg 투여") == 0.0   # 단위 바꿈은 규칙이 먼저 잡는다
     assert llm_calls == ["b 문장"] and c.llm_calls == 1
-    # 근사·환산 수치는 인코더 확신과 무관하게 LLM 으로
+    # 근거에 없는 숫자(근사·환산·변조)는 인코더 확신과 무관하게 LLM 으로
     assert c("수율 18.7 % 증가", "c 수율 약 19 % 증가") == 0.7 and c.llm_calls == 2

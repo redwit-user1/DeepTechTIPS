@@ -70,10 +70,10 @@ def test_unit_swaps():
     assert unit_swaps("1분당 60 증가", "1초당 1 증가") == []
 
 
-def test_approx_numbers_routes_near_values():
-    # 근거와 10% 안쪽이지만 그대로는 아닌 수치(근사·환산) — LLM 으로 보낼 문장을 고른다
-    from compliance_gateway.vcr.hallucination import approx_numbers
-    assert approx_numbers("약 352 MPa", "352.233 MPa") == ["352mpa"]
-    assert approx_numbers("2 시간 반응", "120 분 반응") == ["2시간"]
-    assert approx_numbers("37 ℃", "37 ℃") == []           # 그대로면 해당 없음
-    assert approx_numbers("75 % 수준", "98 % 이상") == []     # 확실히 다른 값은 근사가 아니다
+def test_novel_numbers_routes_new_numbers():
+    # 근거에 그대로 없는 숫자(근사·환산·변조) — LLM 으로 보낼 문장을 고른다
+    from compliance_gateway.vcr.hallucination import novel_numbers
+    assert novel_numbers("5,000 nM 처리", "5 uM 처리") == ["5,000"]
+    assert novel_numbers("4분의 1 감소", "25% 감소") == ["4", "1"]
+    assert novel_numbers("2,927명 등록", "2927 명 등록") == []      # 쉼표 표기 차이는 같은 수
+    assert novel_numbers("37 ℃ 에서 24 시간", "37 ℃, 24 시간") == []

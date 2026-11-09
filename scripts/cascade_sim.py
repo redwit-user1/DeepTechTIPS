@@ -18,7 +18,7 @@ import argparse
 import json
 from pathlib import Path
 
-from compliance_gateway.vcr.hallucination import approx_numbers, unit_swaps
+from compliance_gateway.vcr.hallucination import novel_numbers, unit_swaps
 
 SETS = ("kr_psg_eval", "kr_hard_eval")
 
@@ -32,7 +32,7 @@ def load(scores: Path, enc: str, llm: str = "qwen") -> list[dict]:
         for i, r in src.items():
             rows.append({"set": s, "doc": r["doc"], "kind": r["kind"], "y": r["label"] != "entail",
                          "rule": bool(unit_swaps(r["hypothesis"], r["premise"])),
-                         "route": bool(approx_numbers(r["hypothesis"], r["premise"])), "e": e[i], "q": q[i]})
+                         "route": bool(novel_numbers(r["hypothesis"], r["premise"])), "e": e[i], "q": q[i]})
     return rows
 
 
@@ -45,7 +45,7 @@ def run(rows, lo, hi, th, use_rule=True):
             calls += 1; pred.append(r["q"] < th); continue
         if hi is None:                       # 인코더 단독(th = 인코더 임계)
             pred.append(r["e"] < th); continue
-        if r["route"]:                       # 근사 수치 → 인코더가 약하다, LLM 으로
+        if r["route"]:                       # 근거에 없는 숫자 → 인코더가 약하다, LLM 으로
             calls += 1; pred.append(r["q"] < th); continue
         if r["e"] < lo:
             pred.append(True)
