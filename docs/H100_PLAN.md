@@ -8,7 +8,7 @@
 > | 플랫폼 | AI Train / AI Serv 구분 | **Backend.AI 웹 UI** 컨테이너 세션 (인터랙티브·배치) |
 > | 이미지 | 자유 | NGC PyTorch 25.11 / 25.03 / 24.09 만. `trl`·`vllm` 미포함, torch 는 `/etc/pip/constraint.txt` 로 고정 |
 > | 접속 | teleport | 세션 앱 → **SSH/SFTP** (호스트 `proxy2`/`proxy3`·포트가 세션마다 바뀜, 첫 연결이 끊기면 아이콘 재클릭) |
-> | 저장 | — | `/home/work` 49GB 스크래치(세션 종료 시 삭제). 영속 데이터는 NAS 폴더 `deeptech-tips` |
+> | 저장 | — | `/home/work` 49GB 스크래치(세션 종료 시 삭제). 영속 데이터는 NAS 폴더 `research-data-analysis`(연구데이터 분석 관리) |
 > | 회수 | — | **GPU util 6시간 평균 1% 미만이면 세션 자동 회수** |
 > | 외부망 | 차단 가정 | PyPI·HF·GitHub 열림, sudo 가능 |
 >
