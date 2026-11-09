@@ -51,6 +51,7 @@ compliance_gateway/      # ② Compliance Gateway (1순위 모듈)
   train/                  #   학습 스캐폴드 (sft/dpo/grpo/nli_finetune, Unsloth) — H100용
   serving/                #   OpenAI 호환 서빙 연동 (AI Serv 등, 학습 없이 평가)
   eval/                   #   SciFact 벤치마크 + KPI 하니스 + 외부/국내 실데이터 평가
+  agent/                  #   ③ R&D 에이전트 v1 — DAG 실행기·L1/L2 메모리·Hybrid Router·WF-A
   models.py              #   데이터 모델 (의존성 없음)
   pipeline.py            #   7단계 게이트웨이 파이프라인 오케스트레이션
   demo.py                #   VCR/Gateway 데모
@@ -144,6 +145,12 @@ python scripts/cascade_sim.py --scores data/scores --enc deberta --llm qwen2
 
 **SLM 정렬(SFT/DPO/GRPO, 베이스 Qwen3.8-27B)** 은 검증기가 사람 검수(κ ≥ 0.8)를 통과한 뒤 착수한다 —
 검증기가 틀리면 정렬이 틀린 목표를 학습한다. GRPO 전 `reward_check` 관문은 그대로 유효하다.
+
+## R&D 에이전트 — WF-A 과제 기획 (v1)
+
+`python -m compliance_gateway.agent.wf_a "주제" --base-url http://host:8000/v1 --model <모델ID>` — OpenAlex 선행연구 탐색 → 갭 분석 → 제안서 초안 → Gateway 검증(미달 시 자동 재작성) → **연구자 승인**.
+엔드포인트는 `GOONO_SERVING_URL` / `GOONO_SERVING_MODEL` 환경변수로도 줄 수 있다. 승인은 터미널에서 묻고, 비대화형이면 `pending_human` 으로 멈춘다(에이전트는 스스로 승인하지 않는다).
+끝에 단계 기록과 자동화율(KPI 85%+)을 출력한다. 구성: `compliance_gateway/agent/`(DAG 실행기 · L1/L2 메모리 · Hybrid Router).
 
 ## 빠른 시작
 

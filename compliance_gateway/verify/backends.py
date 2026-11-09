@@ -89,9 +89,12 @@ class OpenAlexBackend:
             for a in item.get("authorships", []) or []
         )
         doi = (item.get("doi") or "").replace("https://doi.org/", "") or None
+        # 초록은 저작권 때문에 역색인({단어: [위치…]})으로만 온다 — 위치 순으로 복원
+        inv = item.get("abstract_inverted_index") or {}
+        abstract = " ".join(w for _, w in sorted((p, w) for w, ps in inv.items() for p in ps))
         return PaperRecord(
             doi=doi, title=item.get("title") or "", authors=authors,
-            year=item.get("publication_year"), source="openalex",
+            year=item.get("publication_year"), source="openalex", abstract=abstract,
         )
 
     def by_doi(self, doi: str) -> Optional[PaperRecord]:

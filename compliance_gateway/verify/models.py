@@ -32,6 +32,7 @@ class PaperRecord:
     authors: tuple[str, ...] = ()
     year: Optional[int] = None
     source: str = "local"          # crossref | openalex | semantic_scholar | local
+    abstract: str = ""             # 초록(OpenAlex 만 제공) — 에이전트 선행연구 탐색의 근거 텍스트
 
     def first_author_surname(self) -> str:
         if not self.authors:
