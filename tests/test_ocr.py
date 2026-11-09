@@ -127,3 +127,13 @@ def test_deidentify_names_next_to_titles():
         out = deidentify(t)
         assert "민준" not in out.text and out.passes == 1, out.text
     assert deidentify("연구원 김민준과 협의").text.count("_") == 1
+
+
+def test_deidentify_is_linear_on_long_unspaced_text():
+    # 이메일 규칙이 띄어쓰기 없는 긴 한글에서 O(n²) 였다(5만 자 78초) — 라우터가 사용자 입력에 돌린다
+    import time
+    from compliance_gateway.data.ocr.deidentify import deidentify
+    t = time.perf_counter()
+    deidentify("가나다라마바사" * 5000)
+    assert time.perf_counter() - t < 2.0
+    assert "이메일_" in deidentify("메일 kim.r-d+lab@redwit.co.kr 로").text

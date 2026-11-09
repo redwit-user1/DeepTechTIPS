@@ -203,7 +203,7 @@ def test_wf_a_regenerates_unsupported_claim_then_passes():
     assert {e["node"]: e["status"] for e in res.log} == {
         "goal": "auto", "search": "auto", "gap": "auto", "draft": "auto",
         "verify": "auto", "block_review": "skipped", "approve": "human"}
-    assert automation_rate(res.log) == 5 / 6
+    assert automation_rate(res.log) == 1.0       # 최종 승인 게이트는 분모 제외
 
 
 def test_wf_a_block_goes_to_human_and_never_self_approves():
@@ -217,7 +217,7 @@ def test_wf_a_block_goes_to_human_and_never_self_approves():
     res2 = run_wf_a("촉매", llm=FakeLLM([UNSUPPORTED] * 3), search_fn=lambda t: PAPERS,
                     gateway=_gateway(), approve=YES)
     assert res2.status == "done" and res2.ctx["approve"]["gateway_override"]
-    assert automation_rate(res2.log) == 5 / 7
+    assert automation_rate(res2.log) == 5 / 6     # 차단 후 사람 검토는 자동화 실패
 
 
 def test_wf_a_no_literature_fails_after_retries():

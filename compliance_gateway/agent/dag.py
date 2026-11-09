@@ -35,6 +35,7 @@ class Node:
     retries: int = 0
     backoff: float = 0.0                           # 재시도 전 대기(초), 매번 2배 — 429 대응
     human: bool = False
+    gate: bool = False                             # 규정상 필수 승인(연구자 최종 승인) — 자동화율 분모에서 뺀다
 
 
 @dataclass
@@ -98,7 +99,7 @@ def run_dag(nodes: list[Node], ctx: Optional[dict] = None,
                     # 사람 대기는 메인 스레드에서(대화형 input() 가능). 그동안 워커는 계속 돈다.
                     t0 = time.perf_counter()
                     if approve is None or not approve(node, ctx):
-                        log.append({"node": name, "status": "pending", "attempts": 0,
+                        log.append({"node": name, "status": "pending", "attempts": 0, "gate": node.gate,
                                     "seconds": round(time.perf_counter() - t0, 3)})
                         status = "pending_human"
                         break
@@ -106,6 +107,7 @@ def run_dag(nodes: list[Node], ctx: Optional[dict] = None,
                     entry["seconds"] = round(time.perf_counter() - t0, 3)
                     if entry["status"] == "auto":
                         entry["status"] = "human"
+                    entry["gate"] = node.gate
                     record(entry, out)
                 else:
                     running[pool.submit(_execute, node, dict(ctx))] = name
@@ -129,7 +131,7 @@ def run_dag(nodes: list[Node], ctx: Optional[dict] = None,
 def automation_rate(log: list[dict]) -> float:
     """에이전트 워크플로우 자동화율 (KPI 목표 85%+).
 
-    자동화율 = auto / (auto + human + failed + pending)
+    자동화율 = auto / (auto + human + failed + pending), 단 **필수 승인 게이트(gate) 제외**
 
     - 분자 `auto`: 사람 개입 없이 완료된 단계. 재시도 끝에 성공해도 auto 다.
     - 분모 = **시도된 단계**: skipped 를 뺀 모든 기록.
@@ -137,10 +139,13 @@ def automation_rate(log: list[dict]) -> float:
       · failed — 재시도를 다 써도 실패 → 자동 아님
       · pending — 사람 대기로 멈춘 단계 → 자동 아님
       · skipped — 조건 미충족으로 실행할 필요가 없던 단계 → 분모에서 제외
+      · gate    — 규정·설계상 반드시 사람이 하는 최종 승인(Node.gate). 자동화 **대상이 아니므로** 제외.
+                  넣으면 사람 승인이 1단계라도 있는 워크플로우는 구조적으로 85% 를 못 넘는다(6단계 중 5 = 83%).
+                  차단 후 사람 검토(에스컬레이션)는 gate 가 아니다 — 자동화 실패로 센다.
     - 실행이 멈춰 기록조차 없는 후속 단계는 시도되지 않았으므로 분모에 없다.
     - 여러 실행을 합산하려면 로그를 이어 붙여 넘긴다(단계 가중 평균). 시도 0건이면 0.0.
     """
-    attempted = [e for e in log if e["status"] != "skipped"]
+    attempted = [e for e in log if e["status"] != "skipped" and not e.get("gate")]
     if not attempted:
         return 0.0
     return sum(e["status"] == "auto" for e in attempted) / len(attempted)

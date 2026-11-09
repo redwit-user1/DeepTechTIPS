@@ -109,7 +109,7 @@ def build_wf_a(llm: LLM, search_fn: SearchFn, gateway: ComplianceGateway,
         Node("verify", verify, deps=("draft",)),
         Node("block_review", deps=("verify",), human=True,
              when=lambda ctx: ctx["verify"]["decision"] == GatewayDecision.BLOCK.value),
-        Node("approve", approved, deps=("verify", "block_review"), human=True),
+        Node("approve", approved, deps=("verify", "block_review"), human=True, gate=True),
     ]
 
 
