@@ -11,6 +11,7 @@
 | 문자 비중 30% 미만 | 숫자·기호만 남은 표 잔해 2.0% | — |
 | 출판 논문 문서 | 문서 단위 판정 11.4% | 고유 가치 0 |
 | 경계 위반 측정값 | pH>14 등 물리 상한 위반 8.5% | 행 제거가 아니라 **표시** |
+| **민감정보(건강) 문서** | 개인 대상 + 건강 서술, 이상반응 (`sensitive.py`) | 문서 단위 제거 |
 
 **경계 위반은 행을 버리지 않고 표시만 한다.** 원인이 문자 오인식이 아니라
 표 구조 손실(값-라벨 결합 오류)이므로 그 행의 다른 내용은 멀쩡하다.
@@ -27,6 +28,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Iterator, Optional
 
 from compliance_gateway.data.ocr.csv_source import OcrRow
+from compliance_gateway.data.ocr.sensitive import sensitive_signals
 
 MIN_CHARS = 200
 MIN_LETTER_RATIO = 0.30
@@ -57,12 +59,13 @@ class GateStats:
     too_short: int = 0
     low_letter: int = 0
     paper: int = 0
+    sensitive: int = 0
     bounded_flagged: int = 0
 
     def as_dict(self) -> dict[str, int | float]:
         d = {k: getattr(self, k) for k in
              ("seen", "passed", "dup", "too_short", "low_letter", "paper",
-              "bounded_flagged")}
+              "sensitive", "bounded_flagged")}
         d["pass_rate"] = round(self.passed / self.seen, 4) if self.seen else 0.0
         return d
 
@@ -94,6 +97,7 @@ class Gate:
     min_chars: int = MIN_CHARS
     min_letter_ratio: float = MIN_LETTER_RATIO
     paper_notes: frozenset[int] = frozenset()
+    sensitive_notes: frozenset[int] = frozenset()   # sensitive.sensitive_notes() 사전 패스 결과
     _seen: set[int] = field(default_factory=set, repr=False)
     stats: GateStats = field(default_factory=GateStats)
 
@@ -113,6 +117,10 @@ class Gate:
         if self.paper_notes and self.note_key(row.note_id) in self.paper_notes:
             self.stats.paper += 1
             return "paper"
+        # 민감정보: 사전 패스로 받은 문서 + 이 행 자체(사전 패스 없이도 행 단위는 막는다)
+        if (self.sensitive_notes and self.note_key(row.note_id) in self.sensitive_notes)                 or sensitive_signals(row.text):
+            self.stats.sensitive += 1
+            return "sensitive"
         t = self.norm(row.text)
         if len(t) < self.min_chars:
             self.stats.too_short += 1
@@ -156,6 +164,13 @@ def _demo() -> None:
     g2 = Gate(paper_notes=paper)
     assert g2.check(mk(5, "pn", long_ko)) == "paper"
     assert g2.check(mk(6, "ok", long_ko)) is None
+
+    # 민감정보: 행 자체 + 같은 문서의 다른 행까지
+    sick = "만 5세 남아의 청력 검사 결과 우측 난청 소견이 있어 재활을 권고함. " * 5
+    sens = frozenset({Gate.note_key("kid")})
+    g3 = Gate(sensitive_notes=sens)
+    assert g3.check(mk(7, "x", sick)) == "sensitive"
+    assert g3.check(mk(8, "kid", long_ko)) == "sensitive", "같은 문서의 다른 페이지도 막아야 한다"
 
     assert bounded_violations("pH 15.2 로 측정") == ["pH"]
     assert bounded_violations("pH 7.4, 수율 82%") == []

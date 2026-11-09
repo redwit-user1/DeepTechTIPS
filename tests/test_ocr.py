@@ -104,3 +104,10 @@ def test_claim_evidence_selfcheck():
     # 교란 띄어쓰기 보존·공유 수치 한정·부등호 제외·표면 누설 감지
     from compliance_gateway.data.ocr.claim_evidence import _demo
     _demo()
+
+
+def test_sensitive_and_gate_selfcheck():
+    # 민감정보(건강) 표지 + 게이트의 문서 단위 차단
+    from compliance_gateway.data.ocr import gate, sensitive
+    sensitive._demo()
+    gate._demo()

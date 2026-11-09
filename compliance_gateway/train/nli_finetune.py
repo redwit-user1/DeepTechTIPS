@@ -56,10 +56,34 @@ def load_klue(split: str) -> list:
             for i, (p, h, l) in enumerate(zip(df["premise"], df["hypothesis"], df["label"])) if int(l) >= 0]
 
 
+KORNLI_URL = "https://huggingface.co/api/datasets/kakaobrain/kor_nli/parquet/multi_nli/train/0.parquet"
+
+
+def load_kornli(n: int = 100_000, seed: int = 0) -> list:
+    """KorNLI(MNLI 기계번역, CC BY-SA 4.0) 에서 n 건 표본. 라벨 순서는 KLUE 와 같다."""
+    import io
+    import random
+    import urllib.request
+
+    import pandas as pd
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    with urllib.request.urlopen(KORNLI_URL, timeout=300) as r:
+        df = pd.read_parquet(io.BytesIO(r.read()))
+    df = df[df["label"] >= 0]
+    idx = random.Random(seed).sample(range(len(df)), min(n, len(df)))
+    sub = df.iloc[idx]
+    return [NLIExample(claim=h, evidence=p, label=KLUE_LABELS[int(l)], claim_id=i, doc_id=-2)
+            for i, (p, h, l) in enumerate(zip(sub["premise"], sub["hypothesis"], sub["label"]))]
+
+
 def prepare_examples(split: str, data_dir=None, include_nei: bool = False, data: str = "scifact") -> list:
-    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue."""
-    if data == "klue":
-        return load_klue({"train": "train", "dev": "validation"}.get(split, split))
+    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue | klue+kornli."""
+    if data.startswith("klue"):
+        ex = load_klue({"train": "train", "dev": "validation"}.get(split, split))
+        # 학습에만 KorNLI 를 더한다 — 검증은 원어민 KLUE dev 로 고정
+        return ex + load_kornli() if data == "klue+kornli" and split == "train" else ex
     from compliance_gateway.eval.scifact import load_scifact
 
     return load_scifact(split=split, data_dir=data_dir, include_nei=include_nei)
@@ -191,8 +215,8 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true", help="GPU 없이 데이터·설정 검증")
     ap.add_argument("--labels", type=int, choices=(2, 3), default=3,
                     help="3=NLI 헤드 유지+NEI(기본), 2=SUPPORT/CONTRADICT(덧붙인 주장을 못 잡음)")
-    ap.add_argument("--data", choices=("scifact", "klue"), default="scifact",
-                    help="klue = KLUE-NLI 한국어(3분류 필요: --labels 3)")
+    ap.add_argument("--data", choices=("scifact", "klue", "klue+kornli"), default="scifact",
+                    help="klue = KLUE-NLI 한국어, klue+kornli = + KorNLI 10만(3분류 필요: --labels 3)")
     a = ap.parse_args()
     cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output, data=a.data,
                             train_split=a.split, eval_split=a.eval_split, num_labels=a.labels)
