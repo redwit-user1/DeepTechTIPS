@@ -31,3 +31,18 @@ def test_prompt_carries_the_source():
     p = bi.prompt_of("qa", "배양 온도는?", PASSAGE)
     assert p.startswith("배양 온도는?") and PASSAGE in p
     assert "요약" in bi.prompt_of("summary", "", PASSAGE)
+
+
+def test_dpo_pairs_from_gate_outcomes():
+    rows = [
+        {**row("A 결과", "summary"), "reason": "pass"},
+        {**row("A 결과에 근거 없는 해석", "summary"), "reason": "unsupported"},
+        {**row("B 조건", "conditions"), "reason": "pass"},                     # 탈락 짝 없음 → 쌍 없음
+        {**row("질문1 답", "qa", "Q1"), "reason": "pass"},
+        {**row("질문2 답", "qa", "Q2"), "reason": "unsupported"},               # 질의응답은 지시가 달라 제외
+        {**row("메일 노출", "report"), "reason": "pii"},
+        {**row("보고서", "report"), "reason": "pass"},                          # 개인정보 탈락은 선호쌍 아님
+    ]
+    pairs = bi.dpo_pairs(rows)
+    assert len(pairs) == 1
+    assert pairs[0]["chosen"] == "A 결과" and pairs[0]["rejected"].endswith("해석") and PASSAGE in pairs[0]["prompt"]

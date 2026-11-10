@@ -11,6 +11,7 @@ AI 가 만든 데이터를 그대로 학습하면 순환오류가 난다(사업�
 
     python scripts/build_instructions.py gen  --passages data/distill/passages.jsonl --out data/instr/gen.jsonl
     python scripts/build_instructions.py gate --gen data/instr/gen.jsonl --out data/instr/sft.jsonl
+    python scripts/build_instructions.py dpo  --screened data/instr/sft.jsonl.screened.jsonl --out data/instr/dpo.jsonl
     python -m compliance_gateway.train.sft --dataset data/instr/sft.jsonl
 """
 
@@ -71,8 +72,10 @@ def gen(a) -> None:
                      for r in chunk]
             enc = tok(texts, return_tensors="pt", padding=True).to("cuda")
             with torch.no_grad():
-                o = m.generate(**enc, max_new_tokens=900, do_sample=True, temperature=0.6, top_p=0.9)
-            for r, seq in zip(chunk, o[:, enc["input_ids"].shape[1]:]):
+                o = m.generate(**enc, max_new_tokens=900, do_sample=True, temperature=0.6, top_p=0.9,
+                               num_return_sequences=a.samples)
+            for k, seq in enumerate(o[:, enc["input_ids"].shape[1]:]):
+                r, sample = chunk[k // a.samples], k % a.samples
                 for js in _JSON.findall(tok.decode(seq, skip_special_tokens=True)):
                     try:
                         h = json.loads(js)
@@ -80,8 +83,8 @@ def gen(a) -> None:
                         continue
                     if h.get("task") in TASKS and len(h.get("answer", "")) >= 10 and (h["task"] != "qa" or h.get("question")):
                         f.write(json.dumps({"doc": r["doc"], "passage": r["passage"], "task": h["task"],
-                                            "question": h.get("question", ""), "answer": h["answer"]},
-                                           ensure_ascii=False) + "\n")
+                                            "question": h.get("question", ""), "answer": h["answer"],
+                                            "sample": sample}, ensure_ascii=False) + "\n")
             f.flush()
             print(f"{min(i + a.batch, len(rows))}/{len(rows)}", flush=True)
 
@@ -112,10 +115,12 @@ def gate(a) -> None:
     rows = [json.loads(l) for l in open(a.gen, encoding="utf-8")]
     why: Counter[str] = Counter()
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    with open(a.out, "w", encoding="utf-8") as f:
+    # 통과·탈락 모두 사유와 함께 남긴다 — 같은 지시의 통과/탈락 응답이 DPO 선호쌍이 된다(`dpo`)
+    with open(a.out, "w", encoding="utf-8") as f, open(a.out + ".screened.jsonl", "w", encoding="utf-8") as sf:
         for i, r in enumerate(rows):
             reason = screen(r, nli, nli.threshold)
             why[reason or "pass"] += 1
+            sf.write(json.dumps({**r, "reason": reason or "pass"}, ensure_ascii=False) + "\n")
             if not reason:
                 rec = to_sft_record(prompt_of(r["task"], r["question"], r["passage"]), r["answer"])
                 rec["source"] = {"doc": r["doc"], "task": r["task"],
@@ -126,17 +131,48 @@ def gate(a) -> None:
     print(f"게이트 {len(rows)} → {dict(why)}")
 
 
+def dpo_pairs(screened: list[dict]) -> list[dict]:
+    """같은 (문서, 과제)의 통과 응답 = chosen, '근거 없는 문장' 탈락 응답 = rejected.
+
+    질의응답은 표본마다 질문이 달라 지시가 같지 않으므로 뺀다. 개인정보·민감 탈락은 선호의 문제가 아니라 뺀다.
+    rejected 가 '근거에 없는 내용을 덧붙인 답'이라 규정준수(출처 충실) 정렬에 바로 쓰인다.
+    """
+    from collections import defaultdict
+
+    groups: dict[tuple, dict[str, list]] = defaultdict(lambda: {"pass": [], "unsupported": []})
+    for r in screened:
+        if r["task"] != "qa" and r["reason"] in ("pass", "unsupported"):
+            groups[(r["doc"], r["task"])][r["reason"]].append(r)
+    out = []
+    for (doc, task), g in groups.items():
+        for good, bad in zip(g["pass"], g["unsupported"]):
+            out.append({"prompt": prompt_of(task, "", good["passage"]), "chosen": good["answer"],
+                        "rejected": bad["answer"], "source": {"doc": doc, "task": task}})
+    return out
+
+
+def dpo(a) -> None:
+    rows = [json.loads(l) for l in open(a.screened, encoding="utf-8")]
+    pairs = dpo_pairs(rows)
+    with open(a.out, "w", encoding="utf-8") as f:
+        for p in pairs:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    print(f"선호쌍 {len(pairs)} ← 심사 {len(rows)}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("gen"); g.add_argument("--passages", required=True); g.add_argument("--out", required=True)
     g.add_argument("--batch", type=int, default=16); g.add_argument("--model", default="Qwen/Qwen3.8-27B")
+    g.add_argument("--samples", type=int, default=1, help="지시당 표본 수(2 이상이면 DPO 선호쌍이 생긴다)")
     t = sub.add_parser("gate"); t.add_argument("--gen", required=True); t.add_argument("--out", required=True)
+    d = sub.add_parser("dpo"); d.add_argument("--screened", required=True); d.add_argument("--out", required=True)
     a = ap.parse_args()
     for p in (getattr(a, "out", ""),):
         if p and not str(Path(p).resolve()).startswith(str(Path.cwd().resolve() / "data")):
             raise SystemExit(f"거부: 출력은 data/ 안이어야 한다(연구노트 원문 포함). 받은 값: {p}")
-    {"gen": gen, "gate": gate}[a.cmd](a)
+    {"gen": gen, "gate": gate, "dpo": dpo}[a.cmd](a)
 
 
 if __name__ == "__main__":
