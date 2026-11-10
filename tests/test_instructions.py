@@ -46,3 +46,18 @@ def test_dpo_pairs_from_gate_outcomes():
     pairs = bi.dpo_pairs(rows)
     assert len(pairs) == 1
     assert pairs[0]["chosen"] == "A 결과" and pairs[0]["rejected"].endswith("해석") and PASSAGE in pairs[0]["prompt"]
+
+
+def test_eval_split_keeps_heldout_docs_out_of_training(tmp_path):
+    import json
+    spec2 = importlib.util.spec_from_file_location("eval_sft", Path("scripts/eval_sft.py"))
+    es = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(es)
+    docs = ["0a", "0b"]                       # 0x0a=10 → 평가용(10 % 10 == 0), 0x0b=11 → 학습용
+    gen = tmp_path / "gen.jsonl"; sft = tmp_path / "sft.jsonl"
+    gen.write_text("\n".join(json.dumps({"doc": d, "task": "summary", "question": "", "passage": PASSAGE, "answer": "x"})
+                             for d in docs) + "\n", encoding="utf-8")
+    sft.write_text("\n".join(json.dumps({"messages": [], "source": {"doc": d}}) for d in docs) + "\n", encoding="utf-8")
+    es.split(type("A", (), {"gen": str(gen), "sft": str(sft), "out": str(tmp_path)}))
+    train = [json.loads(l)["source"]["doc"] for l in open(tmp_path / "sft_train.jsonl", encoding="utf-8")]
+    held = [json.loads(l)["doc"] for l in open(tmp_path / "heldout.jsonl", encoding="utf-8")]
+    assert train == ["0b"] and held == ["0a"]
