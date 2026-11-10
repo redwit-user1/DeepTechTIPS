@@ -26,6 +26,11 @@ def score_all(rows: list[dict], a) -> tuple[list[float], str]:
         return LLMJudgeNLI(a.llm, device=a.device).batch(pairs), f"llm-judge({a.llm})"
     from compliance_gateway.eval.nli_select import select_nli
     fn, name = select_nli(a.nli, None, None, a.device)
+    if a.window:
+        # 게이트웨이와 같은 방식: 근거를 800자 창으로 나눠 최대값. 근거 전체를 넣으면 인코더 512토큰에서
+        # 잘려 긴 근거의 뒷부분 문장을 못 본다(외부 초록셋 F1 95.2 -> 96.2%, 연구노트 §35).
+        from compliance_gateway.pipeline import _windows
+        return [max(fn(c, h) for c in _windows(p)) for p, h in pairs], name + "+window"
     return [fn(p, h) for p, h in pairs], name
 
 
@@ -36,6 +41,7 @@ def main() -> None:
     ap.add_argument("--llm", default=None, help="LLM 판정기 모델 ID")
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--dump", default=None, help="행별 점수를 jsonl 로 저장(캐스케이드 분석용)")
+    ap.add_argument("--window", action="store_true", help="근거를 게이트웨이처럼 800자 창으로 나눠 채점(인코더만)")
     a = ap.parse_args()
 
     rows = [json.loads(l) for l in open(a.path, encoding="utf-8")]
