@@ -44,9 +44,13 @@ class LoRAConfig:
     # 고품질 데이터셋의 LoRA 파인튜닝에서는 dropout 이 대체로 불필요하다.
     dropout: float = 0.0
     bias: str = "none"
-    # 7B 계열 어텐션+MLP 투영 (모델별 명칭은 sft/dpo에서 자동 해석)
+    # 어텐션+MLP 투영. Qwen3.5+ 는 하이브리드 어텐션(4층 중 3층이 Gated DeltaNet 선형 어텐션)이라
+    # q/k/v/o 만 주면 어텐션 LoRA 가 1/4 층에만 붙는다(2026-11-10 실측: q_proj 8개 / 32층).
+    # 선형 어텐션의 주 투영(in_proj_qkv·in_proj_z·out_proj)도 넣는다. in_proj_a/b 는 헤드 수 차원의 게이트라 뺀다.
+    # 없는 이름은 PEFT 가 그냥 건너뛰므로 일반 트랜스포머에도 그대로 쓸 수 있다.
     target_modules: tuple[str, ...] = (
         "q_proj", "k_proj", "v_proj", "o_proj",
+        "in_proj_qkv", "in_proj_z", "out_proj",
         "gate_proj", "up_proj", "down_proj",
     )
 
