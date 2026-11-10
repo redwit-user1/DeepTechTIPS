@@ -11,6 +11,8 @@ Semantic Scholar 100 req/s. 대량 검증 시 캐시·백오프 필수.
 from __future__ import annotations
 
 import json
+import os
+import re
 import urllib.parse
 import urllib.request
 from typing import Optional
@@ -50,9 +52,11 @@ class CrossRefBackend:
         title_list = item.get("title") or [""]
         parts = (item.get("issued", {}).get("date-parts") or [[None]])[0]
         year = parts[0] if parts else None
+        # 초록은 일부 출판사만 JATS XML 로 준다 — 태그를 걷어 평문으로
+        abstract = " ".join(re.sub(r"<[^>]+>", " ", item.get("abstract") or "").split())
         return PaperRecord(
             doi=item.get("DOI"), title=title_list[0] if title_list else "",
-            authors=authors, year=year, source="crossref",
+            authors=authors, year=year, source="crossref", abstract=abstract,
         )
 
     def by_doi(self, doi: str) -> Optional[PaperRecord]:
@@ -107,6 +111,9 @@ class OpenAlexBackend:
         if not title:
             return []
         params = {"search": title, "per-page": str(limit)}
+        # 키 없이는 IP 단위 무료 한도를 공유한다(공용 GPU 서버 IP 는 자주 소진 → 429)
+        if os.getenv("OPENALEX_API_KEY"):
+            params["api_key"] = os.environ["OPENALEX_API_KEY"]
         data = _get_json(f"{self.BASE}?{urllib.parse.urlencode(params)}", self.timeout)
         if not data:
             return []

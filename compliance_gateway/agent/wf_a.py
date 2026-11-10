@@ -24,7 +24,7 @@ from typing import Callable, Optional
 from compliance_gateway.agent.dag import Approve, Node, RunResult, automation_rate, run_dag
 from compliance_gateway.models import GatewayDecision, GenerationRequest
 from compliance_gateway.pipeline import ComplianceGateway
-from compliance_gateway.verify.backends import OpenAlexBackend
+from compliance_gateway.verify.backends import CrossRefBackend, OpenAlexBackend
 from compliance_gateway.verify.models import PaperRecord
 
 LLM = Callable[[str, str], str]
@@ -44,10 +44,42 @@ DRAFT_PROMPT = (
     "3) 연구 내용 4) 기대 효과."
 )
 REGEN_PROMPT = (
-    "아래 초안이 출처 검증(Compliance Gateway)을 통과하지 못했다(VCR {vcr:.2f}). 재작성하라.\n"
-    "근거가 뒷받침하지 않는 문장:\n{unsupported}\n\n[근거]\n{sources}\n\n[초안]\n{draft}\n\n"
-    "뒷받침되지 않는 문장은 근거에 맞게 고치거나 지우고, 근거 문장에는 (DOI: ...) 를 달아 초안 전체를 다시 써라."
+    "아래 초안이 출처 검증(Compliance Gateway)을 통과하지 못했다(VCR {vcr:.2f}, 기준 {threshold:.2f}). 재작성하라.\n"
+    "고칠 점:\n{problems}\n\n[근거]\n{sources}\n\n[초안]\n{draft}\n\n"
+    "위 문제를 고쳐 초안 전체를 다시 써라. 선행연구에 관한 문장은 [근거] 의 내용만 쓰고 그 근거의 DOI 를 (DOI: ...) 로 단다."
 )
+
+
+def feedback(res, records) -> str:
+    """게이트웨이 결과 → 고칠 점 목록.
+
+    처음엔 '뒷받침 안 된 문장'만 알려줬는데, 문장 게이팅이 꺼진 기본 게이트웨이에선 그 목록이 늘 비어
+    재생성이 한 번도 통과로 이어지지 않았다(실측 10주제 중 차단 3 — 연구노트 §36).
+    VCR 항목별로 무엇이 낮은지와 문제 인용을 구체적으로 짚는다.
+    """
+    v, out = res.vcr, []
+    known = {(r.doi or "").lower() for r in records if r.doi}
+    for u in next((r.detail.get("unsupported_sentences", []) for r in res.reports if r.stage == "nli_gating"), []):
+        out.append(f"- 근거가 뒷받침하지 않는 문장: {u['sentence']}")
+    for c in res.citations:
+        if c.doi and c.doi.lower() not in known:
+            out.append(f"- 근거 목록에 없는 DOI 를 인용했다: {c.doi} (근거에 있는 DOI 만 쓸 것)")
+        elif c.verified is False:
+            out.append(f"- 인용 '{c.raw[:60]}' 의 출처가 그 문장을 뒷받침하지 않는다 — 출처 내용에 맞게 고치거나 인용을 옮길 것")
+    if not res.citations:
+        out.append("- 인용이 하나도 없다 — 선행연구 문장마다 근거의 DOI 를 달 것")
+    if v.source_exist < 0.6:
+        out.append(f"- 출처 표기가 부족하다(SourceExist {v.source_exist:.2f}) — 사실 문장마다 출처를 달 것")
+    if v.halluc > 0.3:
+        out.append(f"- 근거에 없는 수치·인용이 있다(Halluc {v.halluc:.2f}) — 근거의 수치만 그대로 쓸 것")
+    if v.alcoa_score < 0.6:
+        out.append(f"- 미완결 표현이나 단위 없는 수치가 있다(ALCOA {v.alcoa_score:.2f})")
+    return "\n".join(out) or f"- 인용과 근거의 일치도가 낮다(SourceMatch {v.source_match:.2f}) — 근거 문장을 더 직접 인용할 것"
+
+
+def search_papers(query: str, limit: int = 5) -> list:
+    """OpenAlex(초록 포함) → 비면 Crossref. OpenAlex 는 키가 없으면 IP 단위 무료 한도라 공용 서버에서 자주 막힌다."""
+    return OpenAlexBackend().search(query, limit=limit) or CrossRefBackend().search(query, limit=limit)
 
 
 def _source_text(i: int, r: PaperRecord) -> str:
@@ -90,9 +122,9 @@ def build_wf_a(llm: LLM, search_fn: SearchFn, gateway: ComplianceGateway,
             if res.decision is not GatewayDecision.REGENERATE:
                 break
             regen += 1
-            listed = "\n".join(f"- {u['sentence']}" for u in unsupported) or "- (문장 게이팅 미설정 — 인용·출처 일치도 미달)"
-            text = llm(REGEN_PROMPT.format(vcr=res.vcr.vcr, unsupported=listed, sources=sources(ctx),
-                                           draft=text), SYSTEM)
+            text = llm(REGEN_PROMPT.format(vcr=res.vcr.vcr, threshold=gateway.vcr_threshold,
+                                           problems=feedback(res, ctx["search"]["records"]),
+                                           sources=sources(ctx), draft=text), SYSTEM)
         return {"decision": res.decision.value, "draft": text, "regenerations": regen,
                 "vcr": res.vcr.vcr, "unsupported": unsupported, "audit_hash": res.audit_hash}
 
@@ -132,7 +164,7 @@ def run_wf_a(topic: str, llm: Optional[LLM] = None, search_fn: Optional[SearchFn
     """WF-A 실행. approve 미지정이면 승인 단계에서 `pending_human` 으로 멈춘다."""
     nodes = build_wf_a(
         llm or served_llm(),
-        search_fn or (lambda t: OpenAlexBackend().search(t, limit=5)),
+        search_fn or search_papers,
         gateway or ComplianceGateway(),
         model_id=model_id,
     )
@@ -164,7 +196,7 @@ def main(argv: Optional[list[str]] = None) -> None:
         ap.error("--base-url / --model 또는 GOONO_SERVING_URL / GOONO_SERVING_MODEL 이 필요하다")
 
     res = run_wf_a(a.topic, llm=served_llm(a.base_url, a.model),
-                   search_fn=lambda t: OpenAlexBackend().search(t, limit=a.limit),
+                   search_fn=lambda t: search_papers(t, limit=a.limit),
                    approve=_ask, model_id=a.model)
     print("\n단계 기록")
     for e in res.log:

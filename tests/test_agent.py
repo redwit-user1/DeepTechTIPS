@@ -236,3 +236,37 @@ def test_openalex_abstract_is_rebuilt_from_inverted_index():
     })
     assert rec.doi == "10.1234/abc" and rec.abstract == "Reaction rate doubled again rate."
     assert OpenAlexBackend._to_record({"title": "no abstract"}).abstract == ""
+
+
+def test_regen_feedback_names_the_problem():
+    from compliance_gateway.agent.wf_a import feedback
+    from compliance_gateway.models import GenerationRequest
+    from compliance_gateway.pipeline import ComplianceGateway
+    from compliance_gateway.verify.models import PaperRecord
+
+    recs = [PaperRecord(doi="10.1000/real", title="Real paper", abstract="ADC linker stability improved.")]
+    gw = ComplianceGateway()
+    g = ("[1] Real paper DOI: 10.1000/real. ADC linker stability improved.",)
+    res = gw.evaluate(GenerationRequest(query="q", response="링커 안정성이 개선되었다 (DOI: 10.9999/fake).", grounding=g))
+    assert "근거 목록에 없는 DOI" in feedback(res, recs)
+    res = gw.evaluate(GenerationRequest(query="q", response="링커 안정성이 개선되었다.", grounding=g))
+    assert "인용이 하나도 없다" in feedback(res, recs)
+
+
+def test_search_falls_back_to_crossref(monkeypatch):
+    from compliance_gateway.agent import wf_a
+    from compliance_gateway.verify.models import PaperRecord
+
+    monkeypatch.setattr(wf_a.OpenAlexBackend, "search", lambda self, q, limit=5: [])
+    monkeypatch.setattr(wf_a.CrossRefBackend, "search", lambda self, q, limit=5: [PaperRecord(title="x")])
+    assert wf_a.search_papers("q")[0].title == "x"
+
+
+def test_citation_accuracy_needs_both_found_and_real():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("ca", Path("scripts/citation_accuracy.py"))
+    ca = importlib.util.module_from_spec(spec); spec.loader.exec_module(ca)
+    rows = [{"cited_dois": ["10.1/a", "10.1/b", "10.1/c"], "source_dois": ["10.1/a", "10.1/b"]}]
+    m = ca.score(rows, resolve=lambda d: d != "10.1/b")
+    assert (m["cited"], m["in_sources"], m["resolvable"], m["accurate"]) == (3, 2, 2, 1)

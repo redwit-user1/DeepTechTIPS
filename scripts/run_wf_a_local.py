@@ -17,7 +17,8 @@ import time
 
 from compliance_gateway.agent.dag import automation_rate
 from compliance_gateway.agent.wf_a import run_wf_a
-from compliance_gateway.verify.backends import OpenAlexBackend
+from compliance_gateway.agent.wf_a import search_papers
+from compliance_gateway.vcr.source_exist import extract_citations
 from compliance_gateway.verify.models import PaperRecord
 
 # (과제 주제, OpenAlex 검색어) — 초기 집중 도메인(제약·바이오·연구데이터 무결성)
@@ -55,7 +56,7 @@ def local_llm(model_id: str, max_new_tokens: int = 1500):
 
 def save_search(path: str, limit: int = 5) -> None:
     """검색만 미리 해 둔다. OpenAlex 무료 한도는 **IP 단위**라 공용 GPU 서버 IP 는 자주 소진된다(429)."""
-    cache = {q: [dataclasses.asdict(r) for r in OpenAlexBackend().search(q, limit=limit)] for _, q in TOPICS}
+    cache = {q: [dataclasses.asdict(r) for r in search_papers(q, limit=limit)] for _, q in TOPICS}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False)
     print({q: len(v) for q, v in cache.items()})
@@ -73,7 +74,7 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--search-cache", help="save_search 로 만든 검색 결과 JSON(없으면 OpenAlex 실시간)")
     a = ap.parse_args()
-    search = cached_search(a.search_cache) if a.search_cache else (lambda q: OpenAlexBackend().search(q, limit=a.limit))
+    search = cached_search(a.search_cache) if a.search_cache else (lambda q: search_papers(q, limit=a.limit))
     llm = local_llm(a.model)
     approve = lambda node, ctx: node.gate          # 최종 승인은 승인, 차단 검토는 거절
     logs = []
@@ -85,7 +86,11 @@ def main() -> None:
             v = res.ctx.get("verify") or {}
             rec = {"topic": topic, "status": res.status, "rate": automation_rate(res.log), "log": res.log,
                    "decision": v.get("decision"), "vcr": v.get("vcr"), "regenerations": v.get("regenerations"),
-                   "n_sources": len((res.ctx.get("search") or {}).get("grounding", [])), "seconds": round(time.time() - t0, 1)}
+                   "n_sources": len((res.ctx.get("search") or {}).get("grounding", [])), "seconds": round(time.time() - t0, 1),
+                   # 출처 정확률 KPI 계산용: 초안·인용 DOI·근거 DOI
+                   "draft": v.get("draft", ""),
+                   "cited_dois": [c.doi for c in extract_citations(v.get("draft", "")) if c.doi],
+                   "source_dois": [r.doi for r in (res.ctx.get("search") or {}).get("records", []) if r.doi]}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             f.flush()
             logs += res.log
