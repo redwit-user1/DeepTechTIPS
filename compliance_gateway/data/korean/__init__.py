@@ -9,9 +9,10 @@
 |---|---|---|
 | ClinicalTrials.gov (국내 기관) | **확보** (MCP) | 실제 국내 연구기관 연구과제 레코드 |
 | bioRxiv/medRxiv | 확보 (MCP) | 국내 기관 소속 프리프린트 |
-| arXiv | 차단 | egress 정책 — 어댑터만 준비 |
-| ScienceON / NTIS / KCI | 차단 | egress 정책 — 어댑터만 준비 |
-| AI Hub 논문요약 | 차단 | 가입·약관 필요 |
+| arXiv | 동작 | 무인증 API, 3초 간격 |
+| KoreaScience | 동작 | 국문 초록 — robots 허용 검색결과 HTML |
+| ScienceON / NTIS | 키 필요 | robots.txt 전면 차단 → 크롤링 불가, OpenAPI 키로만 |
+| AI Hub 논문요약 | 신청 필요 | 가입·약관 — aihubshell 로 다운로드 |
 
 차단된 출처는 `sources.py` 에 **API 명세 기반 어댑터**를 준비해 두었다.
 외부망 환경(A100 등)에서 키/네트워크만 주어지면 즉시 수집이 시작된다.

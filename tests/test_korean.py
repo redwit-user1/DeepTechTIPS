@@ -4,8 +4,10 @@ import pytest
 
 from compliance_gateway.data.korean import kr_render as R
 from compliance_gateway.data.korean.build_kr import build_items, build_registry
+from compliance_gateway.data.korean import sources
 from compliance_gateway.data.korean.sources import (
     ArxivAdapter,
+    KoreaScienceAdapter,
     ScienceONAdapter,
     is_korean_institution,
     load_kr_seed,
@@ -114,6 +116,81 @@ def test_arxiv_parser_works_offline():
     assert recs[0]["arxiv_id"] == "2401.00001v1"
     assert "Korean R&D Data" in recs[0]["title"]
     assert recs[0]["authors"] == ("Hong Gildong",)
+
+
+def test_koreascience_parser_works_offline():
+    """검색결과 HTML(2026-11 실측 구조)에서 국문 초록·서지를 뽑는다."""
+    page = """<article class="srched-box"><h3 class="h4">
+      <a class="articleLink" href="https://koreascience.kr/article/JAKO202414257310546.page">
+      <span class="articleTitle articleTitleKor">감기 치료를 위한 한약제제 임상시험 가이드라인 개발</span>
+      <small>(<span class="articleTitle artileTitleEng">Development of Clinical Trial Guidelines</span>)</small></a></h3>
+      <ul><li class="list-item authorNames"> 박지원;김관일 </li>
+      <li class="list-inline-item journalTitle"> 대한예방한의학회지 </li>
+      <li class="list-inline-item pubYear"> 2024 </li>
+      <li><p class="g-mb-15 abstract"> 목적 : 본 연구는 R&amp;D <i>가이드라인</i>을<br>소개한다. </p></li>
+      <a class="doiLink" href="https://doi.org/10.25153/spkom.2024.28.1.010">doi</a></ul></article>
+      <article class="srched-box"><p>논문 링크 없는 광고 블록</p></article>"""
+    recs = KoreaScienceAdapter.parse(page)
+    assert len(recs) == 1
+    r = recs[0]
+    assert r["id"] == "JAKO202414257310546"
+    assert r["title"].startswith("감기 치료")
+    assert r["authors"] == ("박지원", "김관일")
+    assert r["year"] == "2024"
+    assert r["abstract"] == "목적 : 본 연구는 R&D 가이드라인을 소개한다."
+    assert r["doi"] == "10.25153/spkom.2024.28.1.010"
+
+
+def test_kci_oai_parser_works_offline():
+    """oai_kci 레코드(2026-11 실측 구조) — 삭제 레코드는 건너뛰고 토큰을 돌려준다."""
+    xml = """<ListRecords><record><header><identifier>oai:kci.go.kr:ARTI/1</identifier></header>
+      <metadata><oai_kci><journalInfo><journal-name>한국약학회지</journal-name><pub-year>2024</pub-year></journalInfo>
+      <articleInfo article-id="ART000000001"><article-categories>약학</article-categories>
+      <title-group><article-title lang="original">GLP 시험의 &amp; 데이터 완전성</article-title>
+      <article-title lang="english">Data Integrity in GLP</article-title></title-group>
+      <author-group><author>홍길동(서울대학교)</author></author-group>
+      <author-name><author><name>홍길동</name><affiliation>서울대학교</affiliation></author>
+      <author><name>김철수</name></author></author-name>
+      <abstract-group><abstract lang="original">본 연구는
+        ALCOA+ 원칙을 검토하였다.</abstract></abstract-group>
+      <language>Korean</language><doi>10.1/x</doi></articleInfo></oai_kci></metadata></record>
+      <record><header status="deleted"><identifier>oai:kci.go.kr:ARTI/2</identifier></header></record>
+      <resumptionToken cursor="0">TOKEN123</resumptionToken></ListRecords>"""
+    recs, token = sources.KCIOAIAdapter.parse(xml)
+    assert token == "TOKEN123"
+    assert len(recs) == 1
+    r = recs[0]
+    assert r["id"] == "ART000000001" and r["category"] == "약학" and r["year"] == "2024"
+    assert r["title"] == "GLP 시험의 & 데이터 완전성"
+    assert r["abstract"] == "본 연구는 ALCOA+ 원칙을 검토하였다."
+    assert r["authors"] == [{"name": "홍길동", "affiliation": "서울대학교"}, {"name": "김철수", "affiliation": ""}]
+    assert sources.KCIOAIAdapter.parse("<ListRecords><resumptionToken/></ListRecords>") == ([], "")
+
+
+def test_mfds_guide_parser_works_offline():
+    """식약처 민원인안내서 목록·상세(2026-11 실측 구조)."""
+    listing = '<a href="view.do?seq=15994&amp;page=1">a</a><a href="view.do?seq=15993&amp;page=1">b</a><a href="view.do?seq=15994">dup</a>'
+    assert sources.MFDSGuideAdapter.parse_list(listing) == ["15994", "15993"]
+    view = """<div class="bv_title"><!-- 스킨 END -->
+      연조직고정용장치 허가·심사 가이드라인</div>
+      <ul><li><span>
+      등록번호
+      </span> 안내서-1544-01</li><li><span>등록일</span> 2026-11-06</li></ul>
+      <div class="bbs_file_cont"><strong>★ 가이드라인(민원인 안내서).pdf</strong>
+      <a href="./down.do?brd_id=data0011&amp;seq=15994&amp;data_tp=A&amp;file_seq=2" class="bbs_icon_filedown">다운받기</a>"""
+    v = sources.MFDSGuideAdapter.parse_view(view)
+    assert v["title"] == "연조직고정용장치 허가·심사 가이드라인"
+    assert v["reg_no"] == "안내서-1544-01" and v["date"] == "2026-11-06"
+    assert v["files"] == [{"file_seq": "2", "name": "가이드라인(민원인 안내서).pdf"}]
+
+
+def test_polite_get_refuses_robots_disallowed(monkeypatch):
+    """NTIS 처럼 `Disallow: /` 인 사이트는 요청 전에 막혀야 한다."""
+    sources._robots.cache_clear()
+    monkeypatch.setattr(sources, "_get", lambda url, timeout=20.0: "User-agent: *\nDisallow: /\n")
+    with pytest.raises(RuntimeError, match="robots"):
+        sources.polite_get("https://www.ntis.go.kr/rndopen/openApi/public_rndtask")
+    sources._robots.cache_clear()
 
 
 # ── 실데이터 평가셋 (변조 없음, 출처 기반 라벨) ────────────────────────

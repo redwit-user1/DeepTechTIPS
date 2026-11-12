@@ -52,9 +52,15 @@
 
 ### 2. AI Hub — 논문요약 18만건(한국어)
 1. https://aihub.or.kr 회원가입·로그인
-2. '논문 요약 데이터셋' 신청 및 약관 동의
-3. 다운로드 → `data/raw/aihub/` 배치
-4. 용도: SLM Instruction 학습(M2-3). 이용약관의 목적 제한 확인 필수
+2. '논문자료 요약'(datasetkey 90) 신청 및 약관 동의 — 승인돼야 다운로드된다
+3. 마이페이지에서 API 키 발급 후 CLI 로 받는다(브라우저 불필요, H200 에서 바로):
+   ```bash
+   curl -o aihubshell https://api.aihub.or.kr/api/aihubshell.do && chmod +x aihubshell
+   ./aihubshell -mode l 90                                  # 파일 목록·filekey 확인
+   AIHUB_APIKEY=<키> ./aihubshell -mode d -datasetkey 90    # 전체(또는 -filekey 로 일부)
+   ```
+   받은 파일은 `data/raw/aihub/` 에 둔다. 로더는 실물 포맷 확인 후 작성
+4. 용도: SLM Instruction 학습(M2-3). 이용약관의 목적 제한 확인 필수 · 재배포 금지
 
 ### 3. NTIS — 국가R&D 과제정보
 1. https://www.ntis.go.kr 로그인 → 공개 API 신청

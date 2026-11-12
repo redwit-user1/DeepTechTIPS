@@ -9,9 +9,14 @@
 |---|---|---|
 | **ClinicalTrials.gov (국내 기관)** | **확보** (MCP) | 국내 연구기관 연구과제 **22건 실데이터** |
 | bioRxiv/medRxiv | 확보 (MCP) | 국내 기관 프리프린트 |
-| arXiv | 차단 | egress 정책 — `ArxivAdapter` 준비 완료(파서는 오프라인 테스트됨) |
-| ScienceON / NTIS | 차단 | egress 정책 — 어댑터 준비, 발급키 필요 |
-| KCI / AI Hub | 차단 | egress 정책 |
+| **KoreaScience** | **동작** | 국문 초록 — `scripts/collect_abstracts.py koreascience <검색어>` (robots 허용 HTML만, 2초 간격) |
+| **arXiv** | **동작** | 영문 초록 — `scripts/collect_abstracts.py arxiv <쿼리>` (3초 간격). API 로는 소속기관 필터 불가 |
+| **KCI OAI-PMH** | **동작** | 국내 학술지 전체 서지·초록, 키 없음 — `scripts/harvest.py kci` |
+| **Europe PMC** | **동작** | 한국 소속 OA 메타·초록 30.7만 + 제약·바이오 CC BY/CC0 전문 — `harvest.py epmc` |
+| **식약처 민원인안내서** | **동작** | 국문 규제 가이드 원문 1,299건 — `harvest.py mfds` |
+| **행정규칙(HF)** | **확보** | 23,413건 CC BY 4.0, 비임상시험관리기준(GLP)·의약품 제조 및 품질관리 규정 포함 |
+| ScienceON / NTIS | 키 필요 · **크롤링 불가** | robots.txt 가 전면 차단(NTIS `Disallow: /`, ScienceON 검색봇 외 차단). OpenAPI 키로만 |
+| AI Hub 논문요약 | 신청 필요 | `docs/DATA_ACQUISITION.md` §2 (aihubshell) |
 
 확보 기관: 서울대병원·분당서울대·보라매·서울아산·삼성서울·세브란스·강남세브란스·
 연세대·고려대·충남대(병원)·지엔티파마·말기신부전임상연구센터
@@ -95,9 +100,10 @@ bioRxiv 합성셋(F1 98.2%)과 같은 성격이며, 외부 실데이터(SciFact 
 
 ## 다음 단계
 
-1. **외부 한국어 평가셋 확보** — 한국어 KPI 를 정직하게 주장하려면 필수. ScienceON/KCI 수집
-   (외부망 환경에서 `ScienceONAdapter` 에 발급키 주입)
-2. arXiv 국내 기관 논문 수집 — 외부망에서 `ArxivAdapter` 즉시 사용 가능(무인증)
+1. **외부 한국어 평가셋 확보** — 한국어 KPI 를 정직하게 주장하려면 필수. KoreaScience 국문 초록
+   수집 동작(2026-11, 임상시험·GLP 52건 시험 수집, 평균 867자). ScienceON 은 발급키 대기
+2. arXiv 수집 동작 — 단 국내 기관 필터는 API 로 불가(본문 매칭뿐). 소속 필터가 필요하면 OpenAlex
+   `institutions.country_code:KR` 로 ID 를 먼저 뽑을 것
 3. 자연 한국어 R&D 문서(연구노트·보고서) 확보 — GOONO 실데이터 일부 활용 검토
 
 ---
