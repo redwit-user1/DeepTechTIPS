@@ -1,0 +1,256 @@
+"""NLI 파인튜닝 — SciFact 로 규정위반·출처 판정 정밀도 확보 (M1 최우선).
+
+외부 실데이터 평가에서 통계 NLI 는 어떤 임계값에서도 Precision 41% 상한이었다
+(docs/EVAL_EXTERNAL.md). 트랜스포머 NLI 도입이 KPI 달성의 필수 조건이며,
+본 스크립트가 그 첫 단계다.
+
+학습된 모델 주입:
+    TransformerNLI(model_name="checkpoints/nli")  →  ComplianceGateway(nli_fn=...)
+
+A100 실행:
+  python -m compliance_gateway.train.nli_finetune --base deberta-mnli --output checkpoints/nli
+  python -m compliance_gateway.eval.external --split dev --nli checkpoints/nli   # 재측정
+
+GPU 없이 데이터·설정 검증:
+  python -m compliance_gateway.train.nli_finetune --dry-run
+"""
+
+from __future__ import annotations
+
+import argparse
+from typing import Optional
+
+from compliance_gateway.train.config import NLIFinetuneConfig
+
+# SciFact 라벨 → 학습 라벨. id2label 을 반드시 저장해야 추론 시
+# TransformerNLI 가 entailment 확률을 찾을 수 있다(미설정 시 LABEL_0/LABEL_1 로 저장됨).
+LABEL2ID = {"SUPPORT": 0, "CONTRADICT": 1}
+ID2LABEL = {0: "entailment", 1: "contradiction"}
+
+# 3분류(기본): MNLI 헤드를 유지하고 NEI(인용됐으나 근거 아닌 초록 앞 2문장)를 neutral 로 학습.
+# 평가셋마다 결론이 갈렸다(2026-11-09, DeBERTa-v3-large, H200):
+#   SciFact dev F1            2분류 92.9 / 3분류 91.0
+#   한국어 레코드포함 AUC       2분류 0.898 / 3분류 0.781
+#   **한국어 연구노트 평가셋**   2분류 F1 82.4 / 3분류 87.9  ← 제품 상황(원문→보고서 문장)에 가장 가깝다
+# 2분류는 "원문에 없는 내용을 덧붙인 문장"을 평균 0.972 로 통과시킨다. 그래서 3분류를 기본으로 둔다.
+# 다만 둘 다 zero-shot 다국어 NLI·KLUE 파인튜닝(F1 96.4)보다 낮다 — SciFact 학습 자체를 권하지 않는다.
+TO_NLI = {"SUPPORT": "entailment", "NEI": "neutral", "CONTRADICT": "contradiction"}
+
+
+KLUE_URL = "https://huggingface.co/api/datasets/klue/klue/parquet/nli/{split}/0.parquet"
+KLUE_LABELS = ("SUPPORT", "NEI", "CONTRADICT")   # klue ClassLabel: entailment, neutral, contradiction
+
+
+def load_klue(split: str) -> list:
+    """KLUE-NLI(원어민 작성 한국어, CC BY-SA 4.0) → NLIExample. split: train | validation."""
+    import io
+    import urllib.request
+
+    import pandas as pd
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    with urllib.request.urlopen(KLUE_URL.format(split=split), timeout=120) as r:
+        df = pd.read_parquet(io.BytesIO(r.read()))
+    return [NLIExample(claim=h, evidence=p, label=KLUE_LABELS[int(l)], claim_id=i, doc_id=-1)
+            for i, (p, h, l) in enumerate(zip(df["premise"], df["hypothesis"], df["label"])) if int(l) >= 0]
+
+
+KORNLI_URL = "https://huggingface.co/api/datasets/kakaobrain/kor_nli/parquet/multi_nli/train/0.parquet"
+
+
+def load_kornli(n: int = 100_000, seed: int = 0) -> list:
+    """KorNLI(MNLI 기계번역, CC BY-SA 4.0) 에서 n 건 표본. 라벨 순서는 KLUE 와 같다."""
+    import io
+    import random
+    import urllib.request
+
+    import pandas as pd
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    with urllib.request.urlopen(KORNLI_URL, timeout=300) as r:
+        df = pd.read_parquet(io.BytesIO(r.read()))
+    df = df[df["label"] >= 0]
+    idx = random.Random(seed).sample(range(len(df)), min(n, len(df)))
+    sub = df.iloc[idx]
+    return [NLIExample(claim=h, evidence=p, label=KLUE_LABELS[int(l)], claim_id=i, doc_id=-2)
+            for i, (p, h, l) in enumerate(zip(sub["premise"], sub["hypothesis"], sub["label"]))]
+
+
+def load_jsonl(path: str, split: str) -> list:
+    """증류 학습셋(scripts/distill.py label) → NLIExample. 문서 해시로 dev 5% 를 뗀다."""
+    import hashlib
+    import json
+
+    from compliance_gateway.eval.scifact import NLIExample
+
+    lab = {"entail": "SUPPORT", "neutral": "NEI", "contradict": "CONTRADICT"}
+    out = []
+    for i, line in enumerate(open(path, encoding="utf-8")):
+        r = json.loads(line)
+        is_dev = int(hashlib.md5(r["doc"].encode()).hexdigest(), 16) % 20 == 0
+        if is_dev == (split != "train"):
+            out.append(NLIExample(claim=r["hypothesis"], evidence=r["premise"], label=lab[r["label"]],
+                                  claim_id=i, doc_id=-3))
+    return out
+
+
+def prepare_examples(split: str, data_dir=None, include_nei: bool = False, data: str = "scifact") -> list:
+    """(premise=근거, hypothesis=주장, label) 목록. data = scifact | klue | klue+kornli | <jsonl 경로>."""
+    if not include_nei and data != "scifact":
+        # klue·kornli·증류 jsonl 은 neutral(NEI)을 담는다 — 2분류 라벨표에 없어 학습 중 KeyError 가 났다
+        raise ValueError(f"data={data} 는 NEI 를 포함한다 — --labels 3 을 쓰세요(2분류는 scifact 전용)")
+    if data.endswith(".jsonl"):
+        return load_jsonl(data, split)
+    if data.startswith("klue"):
+        ex = load_klue({"train": "train", "dev": "validation"}.get(split, split))
+        # 학습에만 KorNLI 를 더한다 — 검증은 원어민 KLUE dev 로 고정
+        return ex + load_kornli() if data == "klue+kornli" and split == "train" else ex
+    from compliance_gateway.eval.scifact import load_scifact
+
+    return load_scifact(split=split, data_dir=data_dir, include_nei=include_nei)
+
+
+def dry_run(cfg: NLIFinetuneConfig) -> dict:
+    """GPU 없이 데이터·설정을 검증한다(A100 에서 첫 실행 실패 방지)."""
+    nei = cfg.num_labels == 3
+    train = prepare_examples(cfg.train_split, include_nei=nei, data=cfg.data)
+    dev = prepare_examples(cfg.eval_split, include_nei=nei, data=cfg.data) if cfg.eval_split else []
+    counts = {"SUPPORT": 0, "CONTRADICT": 0}
+    for e in train:
+        counts[e.label] = counts.get(e.label, 0) + 1
+    report = {
+        "model_id": cfg.model_id(),
+        "train_examples": len(train),
+        "eval_examples": len(dev),
+        "label_distribution": counts,
+        "num_labels": cfg.num_labels,
+        "epochs": cfg.epochs,
+        "lr": cfg.lr,
+        "batch_size": cfg.per_device_batch_size,
+    }
+    assert train, "학습 예시가 비어 있음 — bash scripts/download_scifact.sh 먼저 실행"
+    assert set(counts) <= set(TO_NLI if nei else LABEL2ID), f"예상치 못한 라벨: {set(counts)}"
+    return report
+
+
+def run(cfg: NLIFinetuneConfig) -> None:
+    import numpy as np
+    from datasets import Dataset
+    from transformers import (
+        AutoModelForSequenceClassification,
+        AutoTokenizer,
+        DataCollatorWithPadding,
+        Trainer,
+        TrainingArguments,
+    )
+
+    tok = AutoTokenizer.from_pretrained(cfg.model_id())
+    nei = cfg.num_labels == 3
+    if nei:
+        # 사전학습 NLI 헤드 유지 — 라벨 id 는 모델 설정을 따른다
+        model = AutoModelForSequenceClassification.from_pretrained(cfg.model_id())
+        l2i = {k.lower(): v for k, v in model.config.label2id.items()}
+        missing = set(TO_NLI.values()) - set(l2i)
+        assert not missing, f"베이스가 3분류 NLI 모델이 아님(없는 라벨 {missing}) — --labels 2 사용"
+        lab = {k: l2i[v] for k, v in TO_NLI.items()}
+    else:
+        model = AutoModelForSequenceClassification.from_pretrained(
+            cfg.model_id(),
+            num_labels=2,
+            id2label=ID2LABEL,              # ← 추론 시 'entailment' 라벨 조회에 필수
+            label2id={v: k for k, v in ID2LABEL.items()},
+            ignore_mismatched_sizes=True,   # MNLI(3-class) → 2-class 헤드 교체 허용
+        )
+        lab = LABEL2ID
+    ent = lab["SUPPORT"]
+
+    def to_dataset(split: str) -> Optional[Dataset]:
+        examples = prepare_examples(split, include_nei=nei, data=cfg.data)
+        if not examples:
+            return None
+        ds = Dataset.from_dict({
+            "premise": [e.evidence for e in examples],
+            "hypothesis": [e.claim for e in examples],
+            "labels": [lab[e.label] for e in examples],
+        })
+        return ds.map(
+            lambda b: tok(b["premise"], b["hypothesis"], truncation=True, max_length=512),
+            batched=True, remove_columns=["premise", "hypothesis"],
+        )
+
+    train_ds = to_dataset(cfg.train_split)
+    eval_ds = to_dataset(cfg.eval_split) if cfg.eval_split else None
+
+    def compute_metrics(p):
+        preds = np.argmax(p.predictions, axis=1)
+        labels = p.label_ids
+        acc = float((preds == labels).mean())
+        # SUPPORT(entailment) 를 positive 로 본 F1
+        tp = int(((preds == ent) & (labels == ent)).sum())
+        fp = int(((preds == ent) & (labels != ent)).sum())
+        fn = int(((preds != ent) & (labels == ent)).sum())
+        prec = tp / (tp + fp) if (tp + fp) else 0.0
+        rec = tp / (tp + fn) if (tp + fn) else 0.0
+        return {
+            "accuracy": acc,
+            "f1_support": 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0,
+        }
+
+    args = TrainingArguments(
+        output_dir=cfg.output_dir,
+        num_train_epochs=cfg.epochs,
+        learning_rate=cfg.lr,
+        per_device_train_batch_size=cfg.per_device_batch_size,
+        per_device_eval_batch_size=cfg.per_device_batch_size * 2,
+        eval_strategy="epoch" if eval_ds is not None else "no",
+        save_strategy="epoch",
+        load_best_model_at_end=eval_ds is not None,
+        metric_for_best_model="accuracy",
+        logging_steps=20,
+        warmup_ratio=0.1,
+        bf16=True,                       # A100
+    )
+    trainer = Trainer(
+        model=model, args=args,
+        train_dataset=train_ds, eval_dataset=eval_ds,
+        processing_class=tok,            # 최신 transformers (tokenizer= 는 deprecated)
+        data_collator=DataCollatorWithPadding(tok),   # ← 가변 길이 배치에 필수
+        compute_metrics=compute_metrics if eval_ds is not None else None,
+    )
+    trainer.train()
+    trainer.save_model(cfg.output_dir)
+    tok.save_pretrained(cfg.output_dir)
+    if eval_ds is not None:
+        print("[NLI] eval:", trainer.evaluate())
+    print(f"[NLI] saved → {cfg.output_dir}")
+    print(f"[NLI] 재측정: python -m compliance_gateway.eval.external "
+          f"--split dev --nli {cfg.output_dir}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--base", default="deberta-mnli")
+    ap.add_argument("--output", default="checkpoints/nli")
+    ap.add_argument("--split", default="train")
+    ap.add_argument("--eval-split", default="dev")
+    ap.add_argument("--dry-run", action="store_true", help="GPU 없이 데이터·설정 검증")
+    ap.add_argument("--labels", type=int, choices=(2, 3), default=3,
+                    help="3=NLI 헤드 유지+NEI(기본), 2=SUPPORT/CONTRADICT(덧붙인 주장을 못 잡음)")
+    ap.add_argument("--data", default="scifact",
+                    help="scifact | klue | klue+kornli | <증류 jsonl 경로> (klue·증류는 --labels 3)")
+    a = ap.parse_args()
+    cfg = NLIFinetuneConfig(base_model=a.base, output_dir=a.output, data=a.data,
+                            train_split=a.split, eval_split=a.eval_split, num_labels=a.labels)
+    if a.dry_run:
+        report = dry_run(cfg)
+        print("=== dry-run 검증 통과 ===")
+        for k, v in report.items():
+            print(f"  {k}: {v}")
+        return
+    run(cfg)
+
+
+if __name__ == "__main__":
+    main()
