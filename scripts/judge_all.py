@@ -210,7 +210,59 @@ def distill(out: str, base: str, heldout: str, judged: list[str]) -> None:
     print(f"증류 학습셋: 기존 {sum(1 for _ in open(base, encoding='utf-8'))} + 생성 응답 문장 {len(rows)} {dict(Counter(r['label'] for r in rows))}")
 
 
+def dpo_consensus(judged: list[str], exclude: set[str]) -> list[dict]:
+    """두 판정기가 **모두** 동의한 선호쌍 — 같은 (원문, 과제)의 응답 가운데.
+
+    chosen   캐스케이드 통과 + 모든 문장의 LLM 점수 ≥ 0.5
+    rejected 캐스케이드 탈락 + LLM 점수 < 0.5 인 문장이 하나 이상(개인정보·민감 탈락은 선호의 문제가 아니라 뺀다)
+    캐스케이드만 탈락시킨 응답(§40: 8~15%)은 오탈락일 수 있어 rejected 로 쓰지 않는다. 질의응답은 표본마다 질문이 달라 뺀다.
+    exclude(공백 제거 원문)에 있는 평가용 원문은 뺀다.
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from build_instructions import prompt_of
+
+    groups: dict[tuple, dict[str, list]] = defaultdict(lambda: {"good": [], "bad": []})
+    for path in judged:
+        for l in open(path, encoding="utf-8"):
+            r = json.loads(l)
+            key = re.sub(r"\s+", "", r["passage"])
+            if r.get("task") == "qa" or key in exclude or r["pii"] or r["sensitive"] or not r["sents"]:
+                continue
+            v = verdicts(r)
+            low = any(s["llm"] < 0.5 for s in r["sents"])
+            if v["cascade"] and not low:
+                groups[(key, r["task"])]["good"].append(r)
+            elif not v["cascade"] and low:
+                groups[(key, r["task"])]["bad"].append(r)
+    out = []
+    for (_, task), g in groups.items():
+        for good, bad in zip(g["good"], g["bad"]):
+            if good["answer"] != bad["answer"]:
+                out.append({"prompt": prompt_of(task, "", good["passage"], good.get("kind", "note")),
+                            "chosen": good["answer"], "rejected": bad["answer"],
+                            "source": {"doc": good["doc"], "task": task}})
+    return out
+
+
+def dpo(out: str, heldouts: str, judged: list[str]) -> None:
+    exclude = set()
+    for h in heldouts.split(","):
+        exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
+    pairs = dpo_consensus(judged, exclude)
+    if not pairs:
+        raise SystemExit("거부: 선호쌍이 0건이다")
+    with open(out, "w", encoding="utf-8") as f:
+        for p in pairs:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    lc = sorted(len(p["chosen"]) for p in pairs); lr = sorted(len(p["rejected"]) for p in pairs)
+    print(f"합의 선호쌍 {len(pairs)} · 과제 {dict(Counter(p['source']['task'] for p in pairs))} · "
+          f"길이 중앙값 chosen {lc[len(lc) // 2]}자 / rejected {lr[len(lr) // 2]}자 · "
+          f"chosen 이 더 짧은 쌍 {sum(len(p['chosen']) < len(p['rejected']) for p in pairs) / len(pairs):.0%}")
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "dpo":         # dpo <out.jsonl> <heldout1,heldout2> <judged.jsonl>...
+        return dpo(sys.argv[2], sys.argv[3], sys.argv[4:])
     if len(sys.argv) > 1 and sys.argv[1] == "report":
         return report(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "export":      # export <sft_out.jsonl> <judged.jsonl>...
