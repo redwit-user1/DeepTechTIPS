@@ -24,6 +24,18 @@ PROMPT = (
 )
 
 
+# 질의응답 적합성(2026-11-12, 연구노트 §39): 문장 게이팅은 답이 원문에 있는지만 본다. 한 조건의 값을 물었는데
+# 같은 단락의 다른 조건 값을 답해도 통과했다. 질문·답을 함께 준다 — {hypothesis} 자리에 "질문: … / 답: …"(줄바꿈으로 구분).
+QA_PROMPT = (
+    "다음 '연구노트'만 보고 '답'이 '질문'에 대한 올바른 답인지 판정하라.\n"
+    "- 질문이 묻는 대상·조건·시점에 해당하는 내용을 연구노트대로 답했으면 Yes.\n"
+    "- 연구노트에 있는 내용이라도 질문이 묻는 것과 다른 대상·조건·시점의 값이면 No.\n"
+    "- 답이 연구노트와 다르거나, 연구노트로 확인할 수 없거나, 질문에 답하지 않으면 No.\n"
+    "Yes 또는 No 한 단어로만 답하라.\n\n"
+    "연구노트: {premise}\n{hypothesis}"
+)
+
+
 class LLMJudgeNLI:
     def __init__(self, model_name: str = "Qwen/Qwen3.8-27B", device: str = "cuda",
                  batch_size: int = 16, max_chars: int = 8000) -> None:
@@ -53,8 +65,8 @@ class LLMJudgeNLI:
         ids = lambda w: self._tok.encode(w, add_special_tokens=False)[0]
         self._yes, self._no = ids("Yes"), ids("No")
 
-    def _text(self, premise: str, hypothesis: str) -> str:
-        msg = [{"role": "user", "content": PROMPT.format(
+    def _text(self, premise: str, hypothesis: str, prompt: str = PROMPT) -> str:
+        msg = [{"role": "user", "content": prompt.format(
             premise=premise[: self.max_chars], hypothesis=hypothesis[: self.max_chars])}]
         kw = dict(tokenize=False, add_generation_prompt=True)
         try:
@@ -62,19 +74,22 @@ class LLMJudgeNLI:
         except TypeError:
             return self._tok.apply_chat_template(msg, **kw)
 
-    def batch(self, pairs: list[tuple[str, str]]) -> list[float]:
+    def batch(self, pairs: list[tuple[str, str]], prompt: str = PROMPT) -> list[float]:
+        """prompt 를 바꾸면 같은 모델로 다른 판정(예: QA_PROMPT)을 한다. 캐시는 프롬프트별."""
         import torch
 
         self._load()
-        todo = [p for p in dict.fromkeys(pairs) if p not in self._cache]
+        key = (lambda p: p) if prompt is PROMPT else (lambda p: (prompt, *p))
+        todo = [p for p in dict.fromkeys(pairs) if key(p) not in self._cache]
+        todo.sort(key=lambda p: len(p[0]) + len(p[1]))      # 길이순 — 패딩 낭비를 줄인다
         for i in range(0, len(todo), self.batch_size):
             chunk = todo[i: i + self.batch_size]
-            enc = self._tok([self._text(*p) for p in chunk], return_tensors="pt", padding=True).to(self._m.device)
+            enc = self._tok([self._text(*p, prompt=prompt) for p in chunk], return_tensors="pt", padding=True).to(self._m.device)
             with torch.no_grad():
                 logits = self._m(**enc).logits[:, -1, :].float()
             two = torch.softmax(logits[:, [self._yes, self._no]], dim=-1)[:, 0].tolist()
-            self._cache.update(zip(chunk, two))
-        return [self._cache[p] for p in pairs]
+            self._cache.update(zip(map(key, chunk), two))
+        return [self._cache[key(p)] for p in pairs]
 
     def __call__(self, premise: str, hypothesis: str) -> float:
         return self.batch([(premise, hypothesis)])[0]
