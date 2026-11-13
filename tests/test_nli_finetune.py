@@ -55,4 +55,5 @@ def test_dry_run_validates_data():
     report = dry_run(NLIFinetuneConfig())
     assert report["train_examples"] > 0
     assert report["eval_examples"] > 0
-    assert set(report["label_distribution"]) <= {"SUPPORT", "CONTRADICT"}
+    # 기본 설정은 3분류(num_labels=3) — NEI 를 함께 학습한다
+    assert {"SUPPORT", "CONTRADICT"} <= set(report["label_distribution"]) <= {"SUPPORT", "CONTRADICT", "NEI"}

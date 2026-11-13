@@ -46,10 +46,21 @@ GEN_PROMPT = """다음은 연구노트 원문 단락이다. 아래 과제마다 
 _JSON = re.compile(r"\{[^{}]*\"task\"[^{}]*\}")
 
 
-def prompt_of(task: str, question: str, passage: str) -> str:
+KINDS = {"note": "연구노트", "abstract": "논문 초록"}      # 원문 종류 — 지시문과 근거 꼬리표에 쓰는 이름
+
+
+def _kind(text: str, kind: str) -> str:
+    """지시문의 '연구노트 (원문) 단락'을 원문 종류에 맞게 바꾼다. 기본(note)은 그대로 — 기존 데이터와 글자까지 같다."""
+    if kind == "note":
+        return text
+    k = KINDS[kind]
+    return text.replace("연구노트 원문 단락", k).replace("연구노트 단락", k).replace("연구노트", k)
+
+
+def prompt_of(task: str, question: str, passage: str, kind: str = "note") -> str:
     """학습용 사용자 프롬프트. 원문을 함께 준다 — 근거 기반 생성을 배우게 한다(출처 없는 생성 금지)."""
-    ask = question if task == "qa" else TASKS[task]
-    return f"{ask}\n\n[연구노트]\n{passage}"
+    ask = question if task == "qa" else _kind(TASKS[task], kind)
+    return f"{ask}\n\n[{KINDS[kind]}]\n{passage}"
 
 
 def gen(a) -> None:
@@ -67,12 +78,12 @@ def gen(a) -> None:
     with out.open("a", encoding="utf-8") as f:
         for i in range(0, len(rows), a.batch):
             chunk = rows[i: i + a.batch]
-            texts = [tok.apply_chat_template([{"role": "user", "content": GEN_PROMPT.format(passage=r["passage"])}],
+            texts = [tok.apply_chat_template([{"role": "user", "content": _kind(GEN_PROMPT, a.kind).format(passage=r["passage"])}],
                                              tokenize=False, add_generation_prompt=True, enable_thinking=False)
                      for r in chunk]
             enc = tok(texts, return_tensors="pt", padding=True).to("cuda")
             with torch.no_grad():
-                o = m.generate(**enc, max_new_tokens=900, do_sample=True, temperature=0.6, top_p=0.9,
+                o = m.generate(**enc, max_new_tokens=a.max_new_tokens, do_sample=True, temperature=0.6, top_p=0.9,
                                num_return_sequences=a.samples)
             for k, seq in enumerate(o[:, enc["input_ids"].shape[1]:]):
                 r, sample = chunk[k // a.samples], k % a.samples
@@ -84,7 +95,8 @@ def gen(a) -> None:
                     if h.get("task") in TASKS and len(h.get("answer", "")) >= 10 and (h["task"] != "qa" or h.get("question")):
                         f.write(json.dumps({"doc": r["doc"], "passage": r["passage"], "task": h["task"],
                                             "question": h.get("question", ""), "answer": h["answer"],
-                                            "sample": sample}, ensure_ascii=False) + "\n")
+                                            "sample": sample, **({"kind": a.kind} if a.kind != "note" else {})},
+                                           ensure_ascii=False) + "\n")
             f.flush()
             print(f"{min(i + a.batch, len(rows))}/{len(rows)}", flush=True)
 
@@ -122,7 +134,7 @@ def gate(a) -> None:
             why[reason or "pass"] += 1
             sf.write(json.dumps({**r, "reason": reason or "pass"}, ensure_ascii=False) + "\n")
             if not reason:
-                rec = to_sft_record(prompt_of(r["task"], r["question"], r["passage"]), r["answer"])
+                rec = to_sft_record(prompt_of(r["task"], r["question"], r["passage"], r.get("kind", "note")), r["answer"])
                 rec["source"] = {"doc": r["doc"], "task": r["task"],
                                  "passage_sha256": hashlib.sha256(r["passage"].encode("utf-8")).hexdigest()}
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
@@ -146,7 +158,7 @@ def dpo_pairs(screened: list[dict]) -> list[dict]:
     out = []
     for (doc, task), g in groups.items():
         for good, bad in zip(g["pass"], g["unsupported"]):
-            out.append({"prompt": prompt_of(task, "", good["passage"]), "chosen": good["answer"],
+            out.append({"prompt": prompt_of(task, "", good["passage"], good.get("kind", "note")), "chosen": good["answer"],
                         "rejected": bad["answer"], "source": {"doc": doc, "task": task}})
     return out
 
@@ -165,6 +177,8 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     g = sub.add_parser("gen"); g.add_argument("--passages", required=True); g.add_argument("--out", required=True)
     g.add_argument("--batch", type=int, default=16); g.add_argument("--model", default="Qwen/Qwen3.8-27B")
+    g.add_argument("--kind", choices=tuple(KINDS), default="note", help="원문 종류(지시문 표현)")
+    g.add_argument("--max-new-tokens", type=int, default=900, help="긴 원문(초록)은 응답 4종이 900 토큰을 넘는다")
     g.add_argument("--samples", type=int, default=1, help="지시당 표본 수(2 이상이면 DPO 선호쌍이 생긴다)")
     t = sub.add_parser("gate"); t.add_argument("--gen", required=True); t.add_argument("--out", required=True)
     d = sub.add_parser("dpo"); d.add_argument("--screened", required=True); d.add_argument("--out", required=True)
