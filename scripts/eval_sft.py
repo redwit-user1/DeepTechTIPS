@@ -194,12 +194,14 @@ def _nli(kind: str):
 
 def _screen_all(rows: list[dict], kind: str, out: str) -> None:
     nli = _nli(kind)
-    with open(out, "w", encoding="utf-8") as f:
+    tmp = out + ".part"     # 심사 도중 죽으면(v9: 판정 모델 OOM) 몇 줄짜리 결과가 남아 다음 실행이 '있음'으로 건너뛰었다
+    with open(tmp, "w", encoding="utf-8") as f:
         for i, r in enumerate(rows):
             r.update(judge(r["passage"], r["answer"], nli, nli.threshold), judge=kind)
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
             if (i + 1) % 200 == 0:
                 print(f"심사 {i + 1}/{len(rows)}", flush=True)
+    Path(tmp).replace(out)  # 끝까지 쓴 뒤에만 결과 파일이 된다
     print(f"판정기 {kind} · LLM 호출 {nli.llm_calls}/{nli.calls}")
     summarize(rows)
 
@@ -227,11 +229,18 @@ def run(a) -> None:
     # 학습(`train/loader.py`)과 **같은 클래스**로 올린다. 비전 통합 클래스(AutoModelForImageTextToText)는 모듈 경로가
     # model.language_model.layers.* 라, CausalLM 으로 학습한 어댑터(model.layers.*)의 키가 하나도 맞지 않는다 —
     # PEFT 는 경고만 내고 초기값(lora_B = 0, 효과 없음)으로 둔다. v5 첫 실행이 그렇게 '기반모델'을 두 번 쟀다(§38).
+    kw = dict(dtype=torch.bfloat16, device_map="cuda")
+    if a.load_4bit:                        # 양자화 후 성능 보존율(KPI) 예비 측정 — bitsandbytes NF4 4-bit, 계산은 bf16
+        from transformers import BitsAndBytesConfig
+        kw = dict(device_map="cuda", quantization_config=BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16))
     try:
-        m = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16, device_map="cuda").eval()
+        m = AutoModelForCausalLM.from_pretrained(a.model, **kw).eval()
     except (ValueError, KeyError):
         from transformers import AutoModelForImageTextToText
-        m = AutoModelForImageTextToText.from_pretrained(a.model, dtype=torch.bfloat16, device_map="cuda").eval()
+        m = AutoModelForImageTextToText.from_pretrained(a.model, **kw).eval()
+    if a.load_4bit:
+        print(f"[4-bit] 메모리 {m.get_memory_footprint() / 2**30:.1f} GiB")
     if a.adapter:
         from peft import PeftModel
         m = PeftModel.from_pretrained(m, a.adapter).eval()
@@ -248,14 +257,78 @@ def run(a) -> None:
         print(f"{min(i + a.batch, len(rows))}/{len(rows)}", flush=True)
     del m
     torch.cuda.empty_cache()
+    with open(a.out + ".gen", "w", encoding="utf-8") as f:      # 생성분을 먼저 남긴다 — 심사가 죽어도 `rejudge --in <out>.gen` 으로 이어 간다
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
     _screen_all(rows, a.judge, a.out)
+    Path(a.out + ".gen").unlink(missing_ok=True)
+
+
+def sample(a) -> None:
+    """학습용 원문에 대해 모델이 직접 쓴 응답을 지시당 n 개 표집한다 — 자기 응답으로 선호쌍을 만들기 위한 생성.
+
+    교사가 쓴 응답의 통과/탈락 쌍(§43: 693쌍)은 학생이 실제로 저지르는 오류와 다르다. 학생의 표본을 판정해
+    (judge_all) 같은 지시의 통과 응답과 탈락 응답을 짝지으면 선호쌍이 모델의 분포에서 나온다(계획서 3차년도
+    'N=8 응답 샘플링 + VCR 자동평가'의 앞 단계). 질의응답은 질문이 표본마다 달라 뺀다. 평가용 원문은 뺀다.
+    """
+    exclude = set()
+    for h in a.exclude or []:
+        exclude |= {_norm(r["passage"]) for r in _read(h)}
+    seen, prompts = set(), []
+    for src in a.source:
+        for r in _read(src):
+            key = (_norm(r["passage"]), r["task"])
+            if r["task"] == "qa" or key in seen or key[0] in exclude:
+                continue
+            seen.add(key)
+            prompts.append({"doc": r["doc"], "passage": r["passage"], "task": r["task"], "question": "",
+                            **({"kind": r["kind"]} if r.get("kind") else {})})
+    if a.limit_passages:                    # 원문 단위로 자른다(과제 3종이 함께 남게)
+        keep = {p for p in sorted({_norm(x["passage"]) for x in prompts},
+                                  key=lambda s: hashlib.sha256(s.encode("utf-8")).hexdigest())[: a.limit_passages]}
+        prompts = [x for x in prompts if _norm(x["passage"]) in keep]
+    out = Path(a.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    done = {(_norm(r["passage"]), r["task"]) for r in _read(out)} if out.exists() else set()      # 중단 후 재개
+    prompts = [x for x in prompts if (_norm(x["passage"]), x["task"]) not in done]
+    print(f"표집할 지시 {len(prompts)} × {a.n} (이미 {len(done)})", flush=True)
+    if not prompts:
+        return
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(a.model)
+    tok.padding_side = "left"
+    m = AutoModelForCausalLM.from_pretrained(a.model, dtype=torch.bfloat16, device_map="cuda").eval()
+    if a.adapter:
+        from peft import PeftModel
+        m = PeftModel.from_pretrained(m, a.adapter).eval()
+        check_adapter_loaded(m)
+    prompts.sort(key=lambda x: len(x["passage"]))       # 길이순 — 패딩 낭비를 줄인다
+    with out.open("a", encoding="utf-8") as f:
+        for i in range(0, len(prompts), a.batch):
+            chunk = prompts[i: i + a.batch]
+            texts = [tok.apply_chat_template(
+                [{"role": "user", "content": prompt_of(x["task"], "", x["passage"], x.get("kind", "note"))}],
+                tokenize=False, add_generation_prompt=True, enable_thinking=False) for x in chunk]
+            enc = tok(texts, return_tensors="pt", padding=True).to("cuda")
+            with torch.no_grad():
+                o = m.generate(**enc, max_new_tokens=a.max_new_tokens, do_sample=True, temperature=a.temperature,
+                               top_p=0.95, num_return_sequences=a.n)
+            for k, s in enumerate(o[:, enc["input_ids"].shape[1]:]):
+                ans = tok.decode(s, skip_special_tokens=True).strip()
+                if len(ans) >= 10:
+                    f.write(json.dumps({**chunk[k // a.n], "answer": ans, "sample": k % a.n}, ensure_ascii=False) + "\n")
+            f.flush()
+            print(f"{min(i + a.batch, len(prompts))}/{len(prompts)}", flush=True)
+    print("SAMPLE_DONE")
 
 
 def rejudge(a) -> None:
     rows = _read(a.inp)
     if a.limit and len(rows) > a.limit:    # 같은 시드 → 여러 결과 파일에서 같은 지시가 뽑힌다(짝 비교 가능)
         rows = random.Random(0).sample(rows, a.limit)
-    prev = [r["reason"] for r in rows]
+    prev = [r.get("reason") for r in rows]      # 생성만 된 파일(.gen)에는 이전 판정이 없다
     _screen_all(rows, a.judge, a.out)
     agree = sum((p == "pass") == (r["reason"] == "pass") for p, r in zip(prev, rows))
     both = Counter(((p == "pass"), (r["reason"] == "pass")) for p, r in zip(prev, rows))
@@ -315,14 +388,21 @@ def main() -> None:
     s.add_argument("--mod", type=int, default=10)
     r = sub.add_parser("run"); r.add_argument("--model", required=True); r.add_argument("--adapter")
     r.add_argument("--heldout", required=True); r.add_argument("--out", required=True)
+    r.add_argument("--load-4bit", action="store_true", help="4-bit(NF4) 양자화로 올린다 — 양자화 보존율 측정")
     r.add_argument("--max-new-tokens", type=int, default=400, help="긴 원문(초록)의 보고서 문단은 400 토큰에서 잘린다")
     r.add_argument("--style-hint", action="store_true", help="지시 끝에 형식·충실 안내 한 줄을 붙인다(프롬프트 기준선)")
     r.add_argument("--batch", type=int, default=16); r.add_argument("--judge", choices=("cascade", "llm"), default="cascade")
     j = sub.add_parser("rejudge"); j.add_argument("--in", dest="inp", required=True); j.add_argument("--out", required=True)
     j.add_argument("--judge", choices=("cascade", "llm"), default="llm"); j.add_argument("--limit", type=int, default=0)
     c = sub.add_parser("compare"); c.add_argument("a"); c.add_argument("b")
+    m = sub.add_parser("sample"); m.add_argument("--model", required=True); m.add_argument("--adapter")
+    m.add_argument("--source", nargs="+", required=True, help="원문·과제를 가져올 생성/판정 파일(gen 형식)")
+    m.add_argument("--exclude", nargs="*", help="평가 지시 파일 — 그 원문은 표집하지 않는다")
+    m.add_argument("--out", required=True); m.add_argument("--n", type=int, default=4)
+    m.add_argument("--temperature", type=float, default=0.8); m.add_argument("--batch", type=int, default=16)
+    m.add_argument("--max-new-tokens", type=int, default=400); m.add_argument("--limit-passages", type=int, default=0)
     a = ap.parse_args()
-    {"split": split, "run": run, "rejudge": rejudge, "compare": compare}[a.cmd](a)
+    {"split": split, "run": run, "rejudge": rejudge, "compare": compare, "sample": sample}[a.cmd](a)
 
 
 if __name__ == "__main__":

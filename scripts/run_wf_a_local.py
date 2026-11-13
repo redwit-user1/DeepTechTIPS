@@ -36,12 +36,23 @@ TOPICS = [
 ]
 
 
-def local_llm(model_id: str, max_new_tokens: int = 1500):
+def local_llm(model_id: str, max_new_tokens: int = 1500, adapter: str | None = None):
     import torch
     from transformers import AutoModelForImageTextToText, AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(model_id)
-    m = AutoModelForImageTextToText.from_pretrained(model_id, dtype=torch.bfloat16, device_map="cuda").eval()
+    if adapter:
+        # LoRA 어댑터는 학습(`train/loader.py`)과 같은 클래스로 올려야 키가 맞는다(연구노트 §39) — 안 실리면 멈춘다
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM
+        m = AutoModelForCausalLM.from_pretrained(model_id, dtype=torch.bfloat16, device_map="cuda")
+        m = PeftModel.from_pretrained(m, adapter).eval()
+        b = [float(p.detach().abs().sum()) for n, p in m.named_parameters() if "lora_B" in n]
+        if not b or not all(b):
+            raise SystemExit(f"거부: 어댑터가 실리지 않았다 — lora_B {len(b)}개 중 {sum(v == 0 for v in b)}개가 0")
+        print(f"[어댑터] lora_B {len(b)}개 모두 적재: {adapter}", flush=True)
+    else:
+        m = AutoModelForImageTextToText.from_pretrained(model_id, dtype=torch.bfloat16, device_map="cuda").eval()
 
     def llm(prompt: str, system: str) -> str:
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
@@ -72,16 +83,17 @@ def main() -> None:
     ap.add_argument("--model", default="Qwen/Qwen3.8-27B")
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=5)
+    ap.add_argument("--adapter", help="LoRA 어댑터 경로 — SLM v1 + Gateway v1 + 에이전트 v1 통합 실행")
     ap.add_argument("--search-cache", help="save_search 로 만든 검색 결과 JSON(없으면 OpenAlex 실시간)")
     a = ap.parse_args()
     search = cached_search(a.search_cache) if a.search_cache else (lambda q: search_papers(q, limit=a.limit))
-    llm = local_llm(a.model)
+    llm = local_llm(a.model, adapter=a.adapter)
     approve = lambda node, ctx: node.gate          # 최종 승인은 승인, 차단 검토는 거절
     logs = []
     with open(a.out, "w", encoding="utf-8") as f:
         for topic, query in TOPICS:
             t0 = time.time()
-            res = run_wf_a(topic, llm=llm, approve=approve, model_id=a.model,
+            res = run_wf_a(topic, llm=llm, approve=approve, model_id=a.model + ("+" + a.adapter.rstrip("/").rsplit("/", 1)[-1] if a.adapter else ""),
                            search_fn=lambda _t, q=query: search(q))
             v = res.ctx.get("verify") or {}
             rec = {"topic": topic, "status": res.status, "rate": automation_rate(res.log), "log": res.log,
