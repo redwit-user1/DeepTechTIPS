@@ -55,6 +55,15 @@ class LLMJudgeNLI:
 
         self._tok = AutoTokenizer.from_pretrained(self.model_name)
         self._tok.padding_side = "left"   # 마지막 위치 로짓을 읽으므로 왼쪽 패딩
+        if self._tok.pad_token is None:
+            self._tok.pad_token = self._tok.eos_token
+        if not getattr(self._tok, "chat_template", None):
+            # Mistral 계열은 대화 틀이 토크나이저가 아니라 프로세서에 있다(연구노트 §44: 다른 계열 판정 모델)
+            try:
+                from transformers import AutoProcessor
+                self._tok.chat_template = AutoProcessor.from_pretrained(self.model_name).chat_template
+            except Exception:
+                pass
         try:   # Qwen3.5+ 는 비전 통합 모델 — 텍스트만 넣어도 된다
             from transformers import AutoModelForImageTextToText as Auto
             self._m = Auto.from_pretrained(self.model_name, dtype=torch.bfloat16, device_map=self.device)
@@ -69,6 +78,8 @@ class LLMJudgeNLI:
         msg = [{"role": "user", "content": prompt.format(
             premise=premise[: self.max_chars], hypothesis=hypothesis[: self.max_chars])}]
         kw = dict(tokenize=False, add_generation_prompt=True)
+        if not getattr(self._tok, "chat_template", None):
+            return f"[INST] {msg[0]['content']} [/INST]"      # 대화 틀을 끝내 못 찾은 경우의 최소 형식
         try:
             return self._tok.apply_chat_template(msg, enable_thinking=False, **kw)
         except TypeError:

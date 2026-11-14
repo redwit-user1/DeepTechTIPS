@@ -260,7 +260,99 @@ def dpo(out: str, heldouts: str, judged: list[str]) -> None:
           f"chosen 이 더 짧은 쌍 {sum(len(p['chosen']) < len(p['rejected']) for p in pairs) / len(pairs):.0%}")
 
 
+def calibrate(dumps: list[str]) -> float:
+    """라벨이 있는 평가셋의 점수 덤프(kr_nli --dump)에서 판정 임계값을 고른다 — 지지/비지지 균형 정확도가 최대인 값.
+
+    판정 모델마다 P(Yes) 눈금이 다르다(§44: 같은 평가셋의 운영점이 Midm 0.04~0.32, Phi-4 0.44~0.99).
+    0.5 로 일괄 자르면 모델에 따라 지나치게 엄하거나 느슨하다.
+    """
+    pos, neg = [], []
+    for d in dumps:
+        for l in open(d, encoding="utf-8"):
+            r = json.loads(l)
+            (pos if r["label"] == "entail" else neg).append(r["score"])
+    if not pos or not neg:
+        raise SystemExit(f"거부: 보정용 점수가 없다 — {dumps}")
+    best, best_acc = 0.5, -1.0
+    for t in sorted(set(pos + neg)):
+        acc = (sum(s >= t for s in pos) / len(pos) + sum(s < t for s in neg) / len(neg)) / 2
+        if acc > best_acc:
+            best, best_acc = t, acc
+    return best
+
+
+def dpo_multi(judges: dict[str, tuple[list[str], float]], exclude: set[str]) -> tuple[list[dict], Counter]:
+    """여러 판정 모델의 합의로 선호쌍을 만든다. judges: 이름 → (같은 순서의 판정 파일들, 임계값).
+
+    chosen   **모든** 판정 모델이 전 문장 지지(임계값 이상)
+    rejected 판정 모델 과반이 지지하지 않는 문장이 있다고 봄
+    한 판정 모델로 고른 쌍으로 정렬하면 그 모델에 맞추는 법을 배운다(§44: DPO 이득이 다른 판정기에서 사라짐).
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    from build_instructions import prompt_of
+
+    names = list(judges)
+    n_files = {len(judges[n][0]) for n in names}
+    assert len(n_files) == 1, "판정 모델마다 파일 수가 같아야 한다"
+    stats: Counter = Counter()
+    groups: dict[tuple, dict[str, list]] = defaultdict(lambda: {"good": [], "bad": []})
+    for k in range(n_files.pop()):
+        handles = [open(judges[n][0][k], encoding="utf-8") for n in names]
+        for lines in zip(*handles):
+            rows = [json.loads(l) for l in lines]
+            r = rows[0]
+            if any(x["answer"] != r["answer"] for x in rows):
+                raise SystemExit(f"거부: 판정 파일의 행 순서가 다르다 — {judges[names[0]][0][k]}")
+            key = re.sub(r"\s+", "", r["passage"])
+            if r.get("task") == "qa" or key in exclude or r["pii"] or r["sensitive"] or not r["sents"]:
+                continue
+            ok = [all(s["llm"] >= judges[n][1] for s in x["sents"]) for n, x in zip(names, rows)]
+            stats[f"통과 판정 {sum(ok)}/{len(ok)}"] += 1
+            if all(ok):
+                groups[(key, r["task"])]["good"].append(r)
+            elif sum(ok) * 2 < len(ok):
+                groups[(key, r["task"])]["bad"].append(r)
+        for h in handles:
+            h.close()
+    out = []
+    for (_, task), g in groups.items():
+        for good, bad in zip(g["good"], g["bad"]):
+            if good["answer"] != bad["answer"]:
+                out.append({"prompt": prompt_of(task, "", good["passage"], good.get("kind", "note")),
+                            "chosen": good["answer"], "rejected": bad["answer"],
+                            "source": {"doc": good["doc"], "task": task}})
+    return out, stats
+
+
+def dpo_multi_cli(args: list[str]) -> None:
+    """dpo-multi <out.jsonl> <heldout1,heldout2> <scores 디렉터리> <파일1,파일2> <이름=판정디렉터리[=덤프꼬리]>..."""
+    out, heldouts, scores, files, specs = args[0], args[1], args[2], args[3].split(","), args[4:]
+    exclude = set()
+    for h in heldouts.split(","):
+        exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
+    judges = {}
+    for spec in specs:
+        name, d, *tail = spec.split("=")
+        tag = tail[0] if tail else name
+        thr = calibrate([f"{scores}/{s}_{tag}.jsonl" for s in ("kr_psg_eval", "kr_hard_eval", "kr_abs_eval")])
+        judges[name] = ([f"{d}/{f}" for f in files], thr)
+        print(f"판정 모델 {name}: 임계값 {thr:.3f}")
+    pairs, stats = dpo_multi(judges, exclude)
+    if not pairs:
+        raise SystemExit("거부: 선호쌍이 0건이다")
+    with open(out, "w", encoding="utf-8") as f:
+        for p in pairs:
+            f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    lc = sorted(len(p["chosen"]) for p in pairs); lr = sorted(len(p["rejected"]) for p in pairs)
+    print(f"응답별 합의: {dict(sorted(stats.items()))}")
+    print(f"다중 판정 합의 선호쌍 {len(pairs)} · 과제 {dict(Counter(p['source']['task'] for p in pairs))} · "
+          f"길이 중앙값 chosen {lc[len(lc) // 2]}자 / rejected {lr[len(lr) // 2]}자 · "
+          f"chosen 이 더 짧은 쌍 {sum(len(p['chosen']) < len(p['rejected']) for p in pairs) / len(pairs):.0%}")
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "dpo-multi":
+        return dpo_multi_cli(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "dpo":         # dpo <out.jsonl> <heldout1,heldout2> <judged.jsonl>...
         return dpo(sys.argv[2], sys.argv[3], sys.argv[4:])
     if len(sys.argv) > 1 and sys.argv[1] == "report":
