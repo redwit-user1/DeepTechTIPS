@@ -324,6 +324,72 @@ def dpo_multi(judges: dict[str, tuple[list[str], float]], exclude: set[str]) -> 
     return out, stats
 
 
+def _judges_from(scores: str, files: list[str], specs: list[str]) -> dict[str, tuple[list[str], float]]:
+    judges = {}
+    for spec in specs:
+        name, d, *tail = spec.split("=")
+        tag = tail[0] if tail else name
+        thr = calibrate([f"{scores}/{s}_{tag}.jsonl" for s in ("kr_psg_eval", "kr_hard_eval", "kr_abs_eval")])
+        judges[name] = ([f"{d}/{f}" for f in files], thr)
+        print(f"판정 모델 {name}: 임계값 {thr:.3f}")
+    return judges
+
+
+def export_multi_cli(args: list[str]) -> None:
+    """export-multi <sft_out.jsonl> <heldout1,heldout2> <scores 디렉터리> <파일1,파일2> <이름=판정디렉터리[=덤프꼬리]>...
+
+    **모든** 판정 모델이 전 문장을 지지한 응답만 SFT 기록으로 낸다(Qwen 하나로 거른 학습셋과 비교하기 위한 것, §45).
+    질의응답은 첫 판정 모델의 질문 적합성(qa_ok)도 통과해야 한다. 평가용 원문은 뺀다. 같은 (지시, 응답)은 한 번만.
+    """
+    import hashlib
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from build_instructions import prompt_of
+
+    out, heldouts, scores, files, specs = args[0], args[1], args[2], args[3].split(","), args[4:]
+    exclude = set()
+    for h in heldouts.split(","):
+        exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
+    judges = _judges_from(scores, files, specs)
+    names = list(judges)
+    stats, seen, kept = Counter(), set(), Counter()
+    with open(out, "w", encoding="utf-8") as f:
+        for k in range(len(files)):
+            handles = [open(judges[n][0][k], encoding="utf-8") for n in names]
+            for lines in zip(*handles):
+                rows = [json.loads(l) for l in lines]
+                r = rows[0]
+                if any(x["answer"] != r["answer"] for x in rows):
+                    raise SystemExit(f"거부: 판정 파일의 행 순서가 다르다 — {files[k]}")
+                if re.sub(r"\s+", "", r["passage"]) in exclude:
+                    stats["평가 원문 제외"] += 1
+                    continue
+                if r["pii"] or r["sensitive"] or not r["sents"]:
+                    stats["개인정보·민감·빈 응답"] += 1
+                    continue
+                ok = [all(s["llm"] >= judges[n][1] for s in x["sents"]) for n, x in zip(names, rows)]
+                stats[f"통과 판정 {sum(ok)}/{len(ok)}"] += 1
+                if not all(ok) or (r.get("qa_ok") is not None and r["qa_ok"] < QA_THR):
+                    continue
+                prompt = prompt_of(r["task"], r.get("question", ""), r["passage"], r.get("kind", "note"))
+                key = hashlib.sha256((prompt + "\0" + r["answer"]).encode("utf-8")).hexdigest()
+                if key in seen:
+                    continue
+                seen.add(key)
+                kept[r["task"]] += 1
+                f.write(json.dumps({
+                    "messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": r["answer"]}],
+                    "source": {"doc": r["doc"], "task": r["task"],
+                               "passage_sha256": hashlib.sha256(r["passage"].encode("utf-8")).hexdigest()}},
+                    ensure_ascii=False) + "\n")
+            for h in handles:
+                h.close()
+    if not kept:
+        raise SystemExit("거부: 합의 통과 응답이 0건이다")
+    print(f"응답별 합의: {dict(sorted(stats.items()))}")
+    print(f"합의 통과 SFT 기록 {sum(kept.values())} · 과제 {dict(kept)}")
+
+
 def dpo_multi_cli(args: list[str]) -> None:
     """dpo-multi <out.jsonl> <heldout1,heldout2> <scores 디렉터리> <파일1,파일2> <이름=판정디렉터리[=덤프꼬리]>..."""
     out, heldouts, scores, files, specs = args[0], args[1], args[2], args[3].split(","), args[4:]
@@ -353,6 +419,8 @@ def dpo_multi_cli(args: list[str]) -> None:
 def main() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "dpo-multi":
         return dpo_multi_cli(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "export-multi":
+        return export_multi_cli(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "dpo":         # dpo <out.jsonl> <heldout1,heldout2> <judged.jsonl>...
         return dpo(sys.argv[2], sys.argv[3], sys.argv[4:])
     if len(sys.argv) > 1 and sys.argv[1] == "report":
