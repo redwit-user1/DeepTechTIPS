@@ -222,6 +222,17 @@ def test_judge_all_kv_asks_only_item_lines_of_conditions(tmp_path):
     assert asked[0] == "항목: 배양 온도" + chr(10) + "값: 37℃"
 
 
+def test_kv_row_ok_uses_item_judges_for_lines_and_old_verdict_for_sentences():
+    ja = _judge_all()
+    four = lambda *cols: [list(c) for c in zip(*cols)]  # noqa: E731 — 문장별 (판정 넷의 점수) → 판정별 목록
+    assert ja.kv_row_ok(four((0.9, 0.9, 0.9, 0.1)), [False]), "항목 줄: 넷 중 셋이 통과시키면 기존 판정이 탈락이어도 통과"
+    assert not ja.kv_row_ok(four((0.9, 0.9, 0.1, 0.1)), [True])
+    assert not ja.kv_row_ok(four((0.9, 0.9, 0.9, 0.9), (None, None, None, None)), [True, False]), "문장은 기존 판정"
+    assert ja.kv_row_ok(four((0.9, 0.9, 0.9, 0.9), (None, None, None, None)), [False, True])
+    assert not ja.kv_row_ok([[0.9], [0.9], [0.1]], [True]), "판정이 셋 이하이면 모두 통과해야 한다"
+    assert not ja.kv_row_ok([[], [], [], []], []), "빈 응답은 통과가 아니다"
+
+
 def test_prompt_kind_changes_wording_only_for_other_sources():
     assert bi.prompt_of("summary", "", PASSAGE) == bi.prompt_of("summary", "", PASSAGE, "note"), "기본값은 기존 데이터와 글자까지 같다"
     p = bi.prompt_of("summary", "", PASSAGE, "abstract")
