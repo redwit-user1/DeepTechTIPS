@@ -34,6 +34,7 @@ from pathlib import Path
 THR = {"phi4": 0.986, "kanana": 0.651, "midm": 0.202}      # 라벨 평가셋으로 보정한 임계값(연구노트 §44)
 SRC = {"eval2": "note", "evalk": "kci"}
 KV = re.compile(r"^[-•*\d.\s]*[^:：]{1,40}[:：]\s*\S")
+KV_JUDGES, KV_THR = ("phi4", "kanana", "midm", "qwen"), 0.5      # 항목 줄 전용 판정(§48) — 임계값은 아직 보정 전
 OUT = Path("data/labeling")
 
 
@@ -52,6 +53,11 @@ def collect(root: Path, models: list[str]) -> dict[tuple[str, str], dict]:
             for tag in THR:
                 p = root / f"judged_{tag}" / f"{pre}_{m}.jsonl"
                 rows[tag] = [json.loads(l) for l in p.open(encoding="utf-8") if l.strip()]
+            kv = {}                                   # 항목 줄 전용 판정 점수(있으면) — judge_all.py --kv
+            for tag in KV_JUDGES:
+                p = root / "kv" / tag / f"{pre}_{m}.kv.jsonl"
+                if p.exists():
+                    kv[tag] = {x["i"]: x["kv"] for x in map(json.loads, p.open(encoding="utf-8"))}
             for i, r in enumerate(rows["phi4"]):
                 for j, s in enumerate(r["sents"]):
                     key = (r["passage"], s["text"])
@@ -60,7 +66,8 @@ def collect(root: Path, models: list[str]) -> dict[tuple[str, str], dict]:
                     sc = {t: rows[t][i]["sents"][j]["llm"] for t in THR}
                     ok = {t: sc[t] >= THR[t] for t in THR}
                     items[key] = {"passage": r["passage"], "text": s["text"], "task": r["task"], "model": m,
-                                  "scores": sc, "ok": ok, "stratum": stratum(src, s["text"], ok)}
+                                  "scores": sc, "ok": ok, "stratum": stratum(src, s["text"], ok),
+                                  "kv": {t: d[i][j] for t, d in kv.items() if i in d and d[i][j] is not None}}
     return items
 
 
@@ -79,7 +86,7 @@ def make(a) -> None:
         it["id"] = f"J{k + 1:03d}"
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "review_judges.key.json").write_text(json.dumps(
-        {it["id"]: {k: it[k] for k in ("stratum", "population", "task", "model", "scores", "ok")} for it in picked},
+        {it["id"]: {k: it[k] for k in ("stratum", "population", "task", "model", "scores", "ok", "kv")} for it in picked},
         ensure_ascii=False, indent=1), encoding="utf-8")
     for who in "AB":                                   # 두 검수자에게 서로 다른 순서로
         order = picked[:]
@@ -127,6 +134,27 @@ def judge_stats(gold: dict[str, bool], key: dict) -> dict[str, dict]:
     return out
 
 
+def kv_stats(gold: dict[str, bool], key: dict) -> None:
+    """항목 줄 전용 판정(KV_PROMPT)이 사람 판정과 얼마나 맞는지 — 표본 그대로, 임계값 몇 개에서."""
+    sub = {i: g for i, g in gold.items() if key[i].get("kv")}
+    if not sub:
+        return
+    print(f"[항목 줄 전용 판정] n={len(sub)}")
+    for t in KV_JUDGES:
+        have = {i: g for i, g in sub.items() if t in key[i]["kv"]}
+        if not have:
+            continue
+        cells = []
+        for thr in (0.2, KV_THR, 0.8, 0.95):
+            acc = sum((key[i]["kv"][t] >= thr) == g for i, g in have.items()) / len(have)
+            cells.append(f"{thr}: {acc:.1%}")
+        pos = [i for i, g in have.items() if g]
+        neg = [i for i, g in have.items() if not g]
+        print(f"  {t:7s} 정확도 " + " · ".join(cells) + f" | {KV_THR} 에서 맞는 줄 탈락 "
+              f"{sum(key[i]['kv'][t] < KV_THR for i in pos) / max(1, len(pos)):.1%} · 틀린 줄 통과 "
+              f"{sum(key[i]['kv'][t] >= KV_THR for i in neg) / max(1, len(neg)):.1%}")
+
+
 def score(a) -> None:
     key = json.loads((Path(a.sheets[0]).parent / "review_judges.key.json").read_text(encoding="utf-8"))
     sheets = [read_sheet(p) for p in a.sheets]
@@ -153,6 +181,7 @@ def score(a) -> None:
         for t, s in judge_stats(sub, key).items():
             print(f"  {t:7s} 정확도 {s['acc']:.1%}(표본 그대로 {s['raw_acc']:.1%}) · 정밀도 {s['precision']:.1%} · 재현율 {s['recall']:.1%} · "
                   f"맞는 문장을 탈락시킨 비율 {s['false_reject']:.1%} · 틀린 문장을 통과시킨 비율 {s['false_accept']:.1%}")
+    kv_stats(gold, key)
 
 
 def main() -> None:

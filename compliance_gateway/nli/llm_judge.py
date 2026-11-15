@@ -36,6 +36,19 @@ QA_PROMPT = (
 )
 
 
+# 항목 줄 판정(2026-11-15, 연구노트 §48): 조건 추출의 '항목: 값' 줄은 명제가 아니라서 PROMPT 로는 값이 원문에
+# 그대로 있어도 3건 중 1건이 탈락했다. 줄을 항목과 값으로 나눠 준다 — {hypothesis} 자리에 "항목: …\n값: …".
+KV_PROMPT = (
+    "다음 '원문'에서 뽑은 '항목'과 '값'이 맞는지 판정하라.\n"
+    "- 값이 원문에 있고(표기·띄어쓰기 차이, 올바른 단위 환산은 같은 값), 항목 이름이 그 값을 가리키는 말로 "
+    "무리가 없으면 Yes. 항목 이름이 원문에 그대로 없어도 된다.\n"
+    "- 값이 원문에 없거나, 원문과 다르거나, 다른 대상·조건의 값이면 No.\n"
+    "- 값을 여러 개 나열했는데 하나라도 원문에 없으면 No.\n"
+    "Yes 또는 No 한 단어로만 답하라.\n\n"
+    "원문: {premise}\n{hypothesis}"
+)
+
+
 class LLMJudgeNLI:
     def __init__(self, model_name: str = "Qwen/Qwen3.8-27B", device: str = "cuda",
                  batch_size: int = 16, max_chars: int = 8000) -> None:
@@ -92,7 +105,9 @@ class LLMJudgeNLI:
         self._load()
         key = (lambda p: p) if prompt is PROMPT else (lambda p: (prompt, *p))
         todo = [p for p in dict.fromkeys(pairs) if key(p) not in self._cache]
-        todo.sort(key=lambda p: len(p[0]) + len(p[1]))      # 길이순 — 패딩 낭비를 줄인다
+        # 길이순 — 패딩 낭비를 줄인다. 긴 것부터: 짧은 것부터 하면 배치마다 더 큰 블록을 새로 잡아 캐시가 계속 불어난다
+        # (2026-11-15: 배치 4 로도 3분에 31 → 62GB). 가장 큰 블록을 먼저 잡으면 뒤의 배치는 그 안에서 돈다.
+        todo.sort(key=lambda p: len(p[0]) + len(p[1]), reverse=True)
         for i in range(0, len(todo), self.batch_size):
             chunk = todo[i: i + self.batch_size]
             enc = self._tok([self._text(*p, prompt=prompt) for p in chunk], return_tensors="pt", padding=True).to(self._m.device)
