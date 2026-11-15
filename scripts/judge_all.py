@@ -132,6 +132,25 @@ def kv_file(path: str, out: Path, llm) -> None:
     print(f"{path}: 조건 추출 {len(result)}행 · 항목 줄 {len(set(where))}개", flush=True)
 
 
+KV_THR = 0.5        # 항목 줄 전용 판정의 임계값 — 사람 검수 전의 잠정값(§48)
+
+
+def kv_row_ok(kv_scores: list[list], sent_ok: list[bool]) -> bool:
+    """조건 추출 응답 하나의 통과 여부. kv_scores: 판정 모델별 [문장별 전용 점수 또는 None], sent_ok: 문장별 기존 합의 판정.
+
+    항목 줄은 전용 판정 모델 중 하나를 뺀 나머지가 통과시키면(셋 이하이면 모두) 통과, 문장은 기존 판정을 따른다.
+    """
+    need = len(kv_scores) - 1 if len(kv_scores) > 3 else len(kv_scores)
+    for j, old in enumerate(sent_ok):
+        col = [k[j] for k in kv_scores]
+        if col[0] is None:
+            if not old:
+                return False
+        elif sum(v >= KV_THR for v in col) < need:
+            return False
+    return bool(sent_ok)
+
+
 def report(paths: list[str]) -> None:
     for path in paths:
         rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
@@ -384,6 +403,8 @@ def export_multi_cli(args: list[str]) -> None:
     from build_instructions import prompt_of
 
     out, heldouts, scores, files, specs = args[0], args[1], args[2], args[3].split(","), args[4:]
+    kv_dirs = [x for spec in specs if spec.startswith("kv=") for x in spec[3:].split(",")]     # kv=<디렉터리,디렉터리,...>
+    specs = [spec for spec in specs if not spec.startswith("kv=")]
     exclude = set()
     for h in heldouts.split(","):
         exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
@@ -393,7 +414,9 @@ def export_multi_cli(args: list[str]) -> None:
     with open(out, "w", encoding="utf-8") as f:
         for k in range(len(files)):
             handles = [open(judges[n][0][k], encoding="utf-8") for n in names]
-            for lines in zip(*handles):
+            kvs = [{x["i"]: x["kv"] for x in map(json.loads, open(f"{d}/{Path(files[k]).stem}.kv.jsonl", encoding="utf-8"))}
+                   for d in kv_dirs]
+            for i, lines in enumerate(zip(*handles)):
                 rows = [json.loads(l) for l in lines]
                 r = rows[0]
                 if any(x["answer"] != r["answer"] for x in rows):
@@ -406,7 +429,13 @@ def export_multi_cli(args: list[str]) -> None:
                     continue
                 ok = [all(s["llm"] >= judges[n][1] for s in x["sents"]) for n, x in zip(names, rows)]
                 stats[f"통과 판정 {sum(ok)}/{len(ok)}"] += 1
-                if not all(ok) or (r.get("qa_ok") is not None and r["qa_ok"] < QA_THR):
+                passed = all(ok)
+                if kvs and r["task"] == "conditions" and all(i in d for d in kvs):
+                    # 항목 줄은 전용 판정으로(§48) — 기존 프롬프트는 값이 원문에 그대로 있는 줄도 3건 중 1건을 탈락시켰다
+                    sent_ok = [all(x["sents"][j]["llm"] >= judges[n][1] for n, x in zip(names, rows)) for j in range(len(r["sents"]))]
+                    passed = kv_row_ok([d[i] for d in kvs], sent_ok)
+                    stats["조건 추출: 전용 판정 통과" if passed else "조건 추출: 전용 판정 탈락"] += 1
+                if not passed or (r.get("qa_ok") is not None and r["qa_ok"] < QA_THR):
                     continue
                 prompt = prompt_of(r["task"], r.get("question", ""), r["passage"], r.get("kind", "note"))
                 key = hashlib.sha256((prompt + "\0" + r["answer"]).encode("utf-8")).hexdigest()
