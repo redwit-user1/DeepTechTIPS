@@ -198,6 +198,30 @@ def test_judge_all_filter_drops_off_question_answers(tmp_path):
     assert kept == ["0.82 이다", "요약"]
 
 
+def test_judge_all_kv_asks_only_item_lines_of_conditions(tmp_path):
+    import json
+    from compliance_gateway.nli.llm_judge import KV_PROMPT
+    ja = _judge_all()
+    assert ja.kv_split("- 배양 온도: 37℃") == ("배양 온도", "37℃")
+    assert ja.kv_split("시료를 37℃ 에서 배양했다.") is None
+    sent = lambda t: {"text": t, "llm": 0.1}  # noqa: E731
+    rows = [{**row("x", "conditions"), "sents": [sent("배양 온도: 37℃"), sent("배양했다."), sent("시간: 99시간")]},
+            {**row("y", "summary"), "sents": [sent("온도: 37℃")]}]
+    src = tmp_path / "eval.jsonl"; out = tmp_path / "eval.kv.jsonl"
+    src.write_text("".join(json.dumps(r, ensure_ascii=False) + chr(10) for r in rows), encoding="utf-8")
+    asked = []
+
+    class Fake:
+        def batch(self, pairs, prompt=None):
+            assert prompt is KV_PROMPT
+            asked.extend(h for _, h in pairs)
+            return [1.0 if h.split("값: ")[1] in p else 0.0 for p, h in pairs]
+    ja.kv_file(str(src), out, Fake())
+    got = [json.loads(l) for l in open(out, encoding="utf-8")]
+    assert got == [{"i": 0, "kv": [1.0, None, 0.0]}], "조건 추출 행의 항목 줄만 묻고, 문장은 비워 둔다"
+    assert asked[0] == "항목: 배양 온도" + chr(10) + "값: 37℃"
+
+
 def test_prompt_kind_changes_wording_only_for_other_sources():
     assert bi.prompt_of("summary", "", PASSAGE) == bi.prompt_of("summary", "", PASSAGE, "note"), "기본값은 기존 데이터와 글자까지 같다"
     p = bi.prompt_of("summary", "", PASSAGE, "abstract")

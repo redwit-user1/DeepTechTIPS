@@ -95,6 +95,43 @@ def judge_file(path: str, out: Path, enc, llm) -> None:
             print(f"  {min(i + 2000, len(rows))}/{len(rows)}", flush=True)
 
 
+KV_LINE = re.compile(r"^[-•*\d.\s]*([^:：]{1,40})[:：]\s*(\S.*)$")
+
+
+def kv_split(text: str) -> tuple[str, str] | None:
+    """'항목: 값' 줄이면 (항목, 값). 문장이면 None."""
+    m = KV_LINE.match(text.strip())
+    return (m.group(1).strip(), m.group(2).strip()) if m else None
+
+
+def kv_file(path: str, out: Path, llm) -> None:
+    """이미 판정한 파일의 조건 추출 응답에서 항목 줄만 KV_PROMPT 로 다시 묻는다 (연구노트 §48).
+
+    출력은 줄마다 {"i": 행 번호, "kv": [문장별 점수 또는 null]} — 원문을 다시 싣지 않는다.
+    """
+    from compliance_gateway.nli.llm_judge import KV_PROMPT
+    from compliance_gateway.pipeline import _windows
+
+    rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+    pairs, where, result = [], [], {}
+    for i, r in enumerate(rows):
+        if r.get("task") != "conditions":
+            continue
+        result[i] = [None] * len(r["sents"])
+        for j, s in enumerate(r["sents"]):
+            kv = kv_split(s["text"])
+            if kv:
+                for w in _windows(r["passage"]):
+                    pairs.append((w, f"항목: {kv[0]}\n값: {kv[1]}"))
+                    where.append((i, j))
+    for (i, j), v in zip(where, llm.batch(pairs, prompt=KV_PROMPT)):
+        result[i][j] = max(result[i][j] or 0.0, round(float(v), 5))
+    with out.open("w", encoding="utf-8") as f:
+        for i in sorted(result):
+            f.write(json.dumps({"i": i, "kv": result[i]}) + "\n")
+    print(f"{path}: 조건 추출 {len(result)}행 · 항목 줄 {len(set(where))}개", flush=True)
+
+
 def report(paths: list[str]) -> None:
     for path in paths:
         rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
@@ -437,6 +474,7 @@ def main() -> None:
     ap.add_argument("--student", default="checkpoints/nli_distill")
     ap.add_argument("--llm", default="Qwen/Qwen3.8-27B")
     ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--kv", action="store_true", help="이미 판정한 파일의 조건 추출 항목 줄만 KV_PROMPT 로 다시 묻는다 → <이름>.kv.jsonl")
     a = ap.parse_args()
     out = Path(a.out_dir)
     if not str(out.resolve()).startswith(str(Path.cwd().resolve() / "data")):
@@ -446,6 +484,12 @@ def main() -> None:
     from compliance_gateway.nli.llm_judge import LLMJudgeNLI
     from compliance_gateway.nli.transformer import TransformerNLI
 
+    if a.kv:
+        llm = LLMJudgeNLI(a.llm, device="cuda", batch_size=a.batch)
+        for path in a.files:
+            kv_file(path, out / (Path(path).stem + ".kv.jsonl"), llm)
+        print("KV_DONE")
+        return
     if not Path(a.student).exists():
         raise SystemExit(f"거부: 증류 인코더가 없다 — {a.student}")
     enc, llm = TransformerNLI(a.student, device="cuda"), LLMJudgeNLI(a.llm, device="cuda", batch_size=a.batch)
