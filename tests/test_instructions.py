@@ -275,3 +275,22 @@ def test_kci_passage_filter():
     kp = importlib.util.module_from_spec(spec4); spec4.loader.exec_module(kp)
     assert kp.usable("가나다라마 " * 100) and not kp.usable("가나다") and not kp.usable("abcde " * 100)
     assert not kp.usable("가" * 1501)
+
+
+def test_llm_judge_pins_the_date_for_templates_that_take_one():
+    from compliance_gateway.nli.llm_judge import JUDGE_DATE, LLMJudgeNLI
+
+    class Tok:
+        def __init__(self, template):
+            self.chat_template, self.seen = template, None
+
+        def apply_chat_template(self, msg, **kw):
+            self.seen = kw
+            return "x"
+    j = LLMJudgeNLI("m")
+    j._tok = Tok("{{ date_string }} {{ messages }}")
+    j._text("근거", "주장")
+    assert j._tok.seen["date_string"] == JUDGE_DATE, "날짜를 받는 대화 틀에는 고정 날짜를 넘긴다"
+    j._tok = Tok("{{ messages }}")
+    j._text("근거", "주장")
+    assert "date_string" not in j._tok.seen

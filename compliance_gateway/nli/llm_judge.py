@@ -49,6 +49,9 @@ KV_PROMPT = (
 )
 
 
+JUDGE_DATE = "14 Nov 2026"      # 대화 틀이 날짜를 받는 판정 모델에 넘기는 고정 날짜(임계값 보정일)
+
+
 class LLMJudgeNLI:
     def __init__(self, model_name: str = "Qwen/Qwen3.8-27B", device: str = "cuda",
                  batch_size: int = 16, max_chars: int = 8000) -> None:
@@ -91,6 +94,10 @@ class LLMJudgeNLI:
         msg = [{"role": "user", "content": prompt.format(
             premise=premise[: self.max_chars], hypothesis=hypothesis[: self.max_chars])}]
         kw = dict(tokenize=False, add_generation_prompt=True)
+        if "date_string" in (getattr(self._tok, "chat_template", None) or ""):
+            # Midm 2.0 의 대화 틀은 기본 시스템 프롬프트에 '오늘 날짜'를 넣는다 — 날짜가 바뀌면 같은 문장의 점수가 통째로 움직였다
+            # (2026-11-17, 연구노트 §52: 하루 사이 평균 −0.064, 판정 5% 뒤집힘). 임계값을 보정한 날로 고정한다.
+            kw["date_string"] = JUDGE_DATE
         if not getattr(self._tok, "chat_template", None):
             return f"[INST] {msg[0]['content']} [/INST]"      # 대화 틀을 끝내 못 찾은 경우의 최소 형식
         try:

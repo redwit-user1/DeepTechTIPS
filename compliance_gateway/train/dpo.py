@@ -17,7 +17,7 @@ from compliance_gateway.train.config import DPOConfig
 from compliance_gateway.train.data_format import dpo_pairs_to_dpo, write_jsonl
 
 
-def run(cfg: DPOConfig, max_steps: int = -1) -> None:
+def run(cfg: DPOConfig, max_steps: int = -1, seed: int = 42) -> None:
     from pathlib import Path
 
     from datasets import load_dataset
@@ -69,7 +69,7 @@ def run(cfg: DPOConfig, max_steps: int = -1) -> None:
         per_device_train_batch_size=cfg.per_device_batch_size,
         gradient_accumulation_steps=cfg.grad_accum, learning_rate=cfg.lr,
         max_length=cfg.max_seq_len, bf16=cfg.bf16, logging_steps=5,
-        save_strategy="no", report_to="none",
+        save_strategy="no", report_to="none", seed=seed, data_seed=seed,
     )
     trainer = DPOTrainer(model=model, args=args, train_dataset=dataset,
                          processing_class=tokenizer, peft_config=peft_config)
@@ -91,6 +91,7 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=None)
     ap.add_argument("--grad-accum", type=int, default=None)
     ap.add_argument("--max-steps", type=int, default=-1, help="시험 학습용 스텝 상한(-1 = 에폭 기준)")
+    ap.add_argument("--seed", type=int, default=42, help="학습 순서 · 초기화 씨앗 — 반복 학습으로 실행 간 흔들림을 잰다(연구노트 §52)")
     a = ap.parse_args()
     cfg = DPOConfig(base_model=a.base, sft_adapter=a.sft_adapter, dataset_path=a.dataset,
                     output_dir=a.output, vcr_accept_threshold=a.vcr_accept)
@@ -98,7 +99,7 @@ def main() -> None:
     cfg.lr = a.lr or cfg.lr
     cfg.per_device_batch_size = a.batch or cfg.per_device_batch_size
     cfg.grad_accum = a.grad_accum or cfg.grad_accum
-    run(cfg, max_steps=a.max_steps)
+    run(cfg, max_steps=a.max_steps, seed=a.seed)
 
 
 if __name__ == "__main__":
