@@ -233,6 +233,36 @@ def test_kv_row_ok_uses_item_judges_for_lines_and_old_verdict_for_sentences():
     assert not ja.kv_row_ok([[], [], [], []], []), "빈 응답은 통과가 아니다"
 
 
+def test_sample_question_takes_teacher_questions_only_in_qa_mode():
+    spec2 = importlib.util.spec_from_file_location("eval_sft_q", Path("scripts/eval_sft.py"))
+    es = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(es)
+    assert es.sample_question(row("요약", "summary"), qa=False) == ""
+    assert es.sample_question(row("요약", "summary"), qa=True) is None
+    assert es.sample_question(row("37℃", "qa", "배양 온도는?"), qa=False) is None
+    assert es.sample_question(row("37℃", "qa", "배양 온도는?"), qa=True) == "배양 온도는?"
+    assert es.sample_question({**row("37℃", "qa", "배양 온도는?"), "qa_ok": 0.1}, qa=True) is None, "원문에 맞지 않는 질문은 쓰지 않는다"
+    assert es.sample_question(row("37℃", "qa", ""), qa=True) is None
+
+
+def test_dpo_multi_pairs_qa_only_within_the_same_question(tmp_path):
+    import json
+    ja = _judge_all()
+
+    def judged(name, verdicts):          # verdicts: [(질문, 답, 문장 점수, qa_ok)]
+        rows = [{**row(ans, "qa", q), "pii": False, "sensitive": False, "qa_ok": fit,
+                 "sents": [{"text": ans, "llm": sc}]} for q, ans, sc, fit in verdicts]
+        p = tmp_path / f"{name}.jsonl"
+        p.write_text("".join(json.dumps(r, ensure_ascii=False) + chr(10) for r in rows), encoding="utf-8")
+        return ([str(p)], 0.5)
+    base = [("배양 온도는?", "37℃ 이다", 0.9, 0.9),      # 모두 통과 + 적합 → chosen
+            ("배양 온도는?", "24시간 이다", 0.9, 0.1),   # 원문에 있는 값이지만 질문과 다름 → rejected
+            ("흡광도는?", "0.99 이다", 0.1, 0.9),         # 다른 질문의 탈락 — 위 chosen 과 짝이 되면 안 된다
+            ("", "질문 없는 행", 0.9, 0.9)]
+    pairs, stats = ja.dpo_multi({n: judged(n, base) for n in ("a", "b", "c")}, set())
+    assert [(p["chosen"], p["rejected"]) for p in pairs] == [("37℃ 이다", "24시간 이다")]
+    assert "배양 온도는?" in pairs[0]["prompt"] and pairs[0]["source"]["task"] == "qa"
+
+
 def test_prompt_kind_changes_wording_only_for_other_sources():
     assert bi.prompt_of("summary", "", PASSAGE) == bi.prompt_of("summary", "", PASSAGE, "note"), "기본값은 기존 데이터와 글자까지 같다"
     p = bi.prompt_of("summary", "", PASSAGE, "abstract")

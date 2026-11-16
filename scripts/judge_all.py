@@ -360,21 +360,31 @@ def dpo_multi(judges: dict[str, tuple[list[str], float]], exclude: set[str]) -> 
             if any(x["answer"] != r["answer"] for x in rows):
                 raise SystemExit(f"거부: 판정 파일의 행 순서가 다르다 — {judges[names[0]][0][k]}")
             key = re.sub(r"\s+", "", r["passage"])
-            if r.get("task") == "qa" or key in exclude or r["pii"] or r["sensitive"] or not r["sents"]:
+            if key in exclude or r["pii"] or r["sensitive"] or not r["sents"]:
                 continue
+            q = ""
+            if r.get("task") == "qa":            # 같은 질문의 표본끼리만 짝짓는다. 질문이 없는 행은 뺀다
+                q = (r.get("question") or "").strip()
+                if not q:
+                    continue
             ok = [all(s["llm"] >= judges[n][1] for s in x["sents"]) for n, x in zip(names, rows)]
+            good, bad = all(ok), sum(ok) * 2 < len(ok)
+            if q:                                # 질의응답은 질문 적합성도 합의로: 모두 적합해야 chosen, 과반이 부적합이면 rejected
+                fit = [x.get("qa_ok") is not None and x["qa_ok"] >= QA_THR for x in rows]
+                good, bad = good and all(fit), bad or sum(fit) * 2 < len(fit)
+                stats[f"질의응답 적합 판정 {sum(fit)}/{len(fit)}"] += 1
             stats[f"통과 판정 {sum(ok)}/{len(ok)}"] += 1
-            if all(ok):
-                groups[(key, r["task"])]["good"].append(r)
-            elif sum(ok) * 2 < len(ok):
-                groups[(key, r["task"])]["bad"].append(r)
+            if good:
+                groups[(key, r["task"], q)]["good"].append(r)
+            elif bad:
+                groups[(key, r["task"], q)]["bad"].append(r)
         for h in handles:
             h.close()
     out = []
-    for (_, task), g in groups.items():
+    for (_, task, q), g in groups.items():
         for good, bad in zip(g["good"], g["bad"]):
             if good["answer"] != bad["answer"]:
-                out.append({"prompt": prompt_of(task, "", good["passage"], good.get("kind", "note")),
+                out.append({"prompt": prompt_of(task, q, good["passage"], good.get("kind", "note")),
                             "chosen": good["answer"], "rejected": bad["answer"],
                             "source": {"doc": good["doc"], "task": task}})
     return out, stats

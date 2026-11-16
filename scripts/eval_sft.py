@@ -264,6 +264,20 @@ def run(a) -> None:
     Path(a.out + ".gen").unlink(missing_ok=True)
 
 
+def sample_question(r: dict, qa: bool) -> str | None:
+    """표집할 지시의 질문. 질의응답이 아니면 "". 표집하지 않을 행이면 None.
+
+    qa=False(기본)는 질의응답을 빼고, qa=True 는 질의응답만 — 교사가 만든 질문을 그대로 지시로 쓴다. 질문이 원문에
+    맞지 않는다고 판정된(qa_ok < 0.5) 행의 질문은 쓰지 않는다(연구노트 §50: 질의응답만 선호쌍이 없었다).
+    """
+    if r["task"] != "qa":
+        return None if qa else ""
+    q = (r.get("question") or "").strip()
+    if not qa or not q or (r.get("qa_ok") is not None and r["qa_ok"] < 0.5):
+        return None
+    return q
+
+
 def sample(a) -> None:
     """학습용 원문에 대해 모델이 직접 쓴 응답을 지시당 n 개 표집한다 — 자기 응답으로 선호쌍을 만들기 위한 생성.
 
@@ -277,11 +291,12 @@ def sample(a) -> None:
     seen, prompts = set(), []
     for src in a.source:
         for r in _read(src):
-            key = (_norm(r["passage"]), r["task"])
-            if r["task"] == "qa" or key in seen or key[0] in exclude:
+            q = sample_question(r, a.qa)
+            key = (_norm(r["passage"]), r["task"], q)
+            if q is None or key in seen or key[0] in exclude:
                 continue
             seen.add(key)
-            prompts.append({"doc": r["doc"], "passage": r["passage"], "task": r["task"], "question": "",
+            prompts.append({"doc": r["doc"], "passage": r["passage"], "task": r["task"], "question": q,
                             **({"kind": r["kind"]} if r.get("kind") else {})})
     if a.limit_passages:                    # 원문 단위로 자른다(과제 3종이 함께 남게)
         keep = {p for p in sorted({_norm(x["passage"]) for x in prompts},
@@ -289,8 +304,8 @@ def sample(a) -> None:
         prompts = [x for x in prompts if _norm(x["passage"]) in keep]
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    done = {(_norm(r["passage"]), r["task"]) for r in _read(out)} if out.exists() else set()      # 중단 후 재개
-    prompts = [x for x in prompts if (_norm(x["passage"]), x["task"]) not in done]
+    done = {(_norm(r["passage"]), r["task"], r.get("question", "")) for r in _read(out)} if out.exists() else set()      # 중단 후 재개
+    prompts = [x for x in prompts if (_norm(x["passage"]), x["task"], x["question"]) not in done]
     print(f"표집할 지시 {len(prompts)} × {a.n} (이미 {len(done)})", flush=True)
     if not prompts:
         return
@@ -309,7 +324,7 @@ def sample(a) -> None:
         for i in range(0, len(prompts), a.batch):
             chunk = prompts[i: i + a.batch]
             texts = [tok.apply_chat_template(
-                [{"role": "user", "content": prompt_of(x["task"], "", x["passage"], x.get("kind", "note"))}],
+                [{"role": "user", "content": prompt_of(x["task"], x["question"], x["passage"], x.get("kind", "note"))}],
                 tokenize=False, add_generation_prompt=True, enable_thinking=False) for x in chunk]
             enc = tok(texts, return_tensors="pt", padding=True).to("cuda")
             with torch.no_grad():
@@ -317,7 +332,7 @@ def sample(a) -> None:
                                top_p=0.95, num_return_sequences=a.n)
             for k, s in enumerate(o[:, enc["input_ids"].shape[1]:]):
                 ans = tok.decode(s, skip_special_tokens=True).strip()
-                if len(ans) >= 10:
+                if len(ans) >= (2 if chunk[k // a.n]["task"] == "qa" else 10):      # 질의응답의 답은 짧다
                     f.write(json.dumps({**chunk[k // a.n], "answer": ans, "sample": k % a.n}, ensure_ascii=False) + "\n")
             f.flush()
             print(f"{min(i + a.batch, len(prompts))}/{len(prompts)}", flush=True)
@@ -401,6 +416,7 @@ def main() -> None:
     m.add_argument("--out", required=True); m.add_argument("--n", type=int, default=4)
     m.add_argument("--temperature", type=float, default=0.8); m.add_argument("--batch", type=int, default=16)
     m.add_argument("--max-new-tokens", type=int, default=400); m.add_argument("--limit-passages", type=int, default=0)
+    m.add_argument("--qa", action="store_true", help="질의응답만 표집한다(교사가 만든 질문을 지시로)")
     a = ap.parse_args()
     {"split": split, "run": run, "rejudge": rejudge, "compare": compare, "sample": sample}[a.cmd](a)
 
