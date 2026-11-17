@@ -37,7 +37,7 @@ def report_lora(model) -> dict:
     return dict(by)
 
 
-def run(cfg: SFTConfig, max_steps: int = -1) -> None:
+def run(cfg: SFTConfig, max_steps: int = -1, seed: int = 42) -> None:
     # 지연 임포트: torch/transformers/trl/peft 는 A100 환경에서만 필요.
     from datasets import load_dataset
     from peft import LoraConfig
@@ -75,7 +75,7 @@ def run(cfg: SFTConfig, max_steps: int = -1) -> None:
         per_device_train_batch_size=cfg.per_device_batch_size,
         gradient_accumulation_steps=cfg.grad_accum, learning_rate=cfg.lr,
         bf16=cfg.bf16, logging_steps=5, save_strategy="no" if max_steps > 0 else "epoch",
-        report_to="none", **{seq_key: cfg.max_seq_len},
+        report_to="none", seed=seed, data_seed=seed, **{seq_key: cfg.max_seq_len},
     )
     trainer = SFTTrainer(model=model, args=args, train_dataset=dataset,
                          peft_config=peft_config, processing_class=tokenizer)
@@ -94,11 +94,12 @@ def main() -> None:
     ap.add_argument("--max-steps", type=int, default=-1, help="시험 학습용 스텝 상한(-1 = 에폭 기준)")
     ap.add_argument("--batch", type=int, default=None)
     ap.add_argument("--grad-accum", type=int, default=None)
+    ap.add_argument("--seed", type=int, default=42, help="학습 순서 · 초기화 씨앗 — 반복 학습으로 실행 간 흔들림을 잰다(연구노트 §53)")
     a = ap.parse_args()
     cfg = SFTConfig(base_model=a.base, dataset_path=a.dataset, output_dir=a.output, epochs=a.epochs)
     cfg.per_device_batch_size = a.batch or cfg.per_device_batch_size
     cfg.grad_accum = a.grad_accum or cfg.grad_accum
-    run(cfg, max_steps=a.max_steps)
+    run(cfg, max_steps=a.max_steps, seed=a.seed)
 
 
 if __name__ == "__main__":
