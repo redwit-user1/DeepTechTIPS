@@ -152,6 +152,22 @@ def kv_row_ok(kv_scores: list[list], sent_ok: list[bool]) -> bool:
     return bool(sent_ok)
 
 
+def enc_file(path: str, out: Path, enc) -> None:
+    """이미 판정한 파일의 문장에 인코더 점수(enc)만 다시 매긴다 — LLM 점수는 그대로 둔다 (§54: 인코더끼리 비교)."""
+    from compliance_gateway.pipeline import _windows
+
+    with open(path, encoding="utf-8") as f, out.open("w", encoding="utf-8") as g:
+        for l in f:
+            if not l.strip():
+                continue
+            r = json.loads(l)
+            wins = _windows(r["passage"])
+            for s in r["sents"]:
+                s["enc"] = round(max(float(enc(w, s["text"])) for w in wins), 5)
+            g.write(json.dumps(r, ensure_ascii=False) + NL)
+    print(f"{path}: 인코더 점수 다시 매김", flush=True)
+
+
 def report(paths: list[str]) -> None:
     for path in paths:
         rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
@@ -317,18 +333,21 @@ def distill_multi_rows(judges: dict[str, tuple[list[str], float]], exclude: set[
 def distill_multi_cli(args: list[str]) -> None:
     """distill-multi <out.jsonl> <기존 학습셋> <heldout1,heldout2> <scores 디렉터리> <파일1,파일2> <이름=판정디렉터리[=덤프꼬리]>..."""
     out, base, heldouts, scores, files, specs = args[0], args[1], args[2], args[3], args[4].split(","), args[5:]
+    opts = dict(x.split("=") for x in specs if x.startswith(("cap=", "base_x=")))      # cap=<합의 문장 상한> base_x=<기존 학습셋 반복>
+    specs = [x for x in specs if not x.startswith(("cap=", "base_x="))]
     exclude = set()
     for h in heldouts.split(","):
         exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
-    rows, stats = distill_multi_rows(_judges_from(scores, files, specs), exclude)
+    rows, stats = distill_multi_rows(_judges_from(scores, files, specs), exclude, cap=int(opts.get("cap", 60000)))
     if not rows:
         raise SystemExit("거부: 합의 라벨이 0건이다")
     with open(out, "w", encoding="utf-8") as f:
-        for l in open(base, encoding="utf-8"):
-            f.write(l if l.endswith(NL) else l + NL)
+        for _ in range(int(opts.get("base_x", 1))):      # 설계한 위반 예(기존 학습셋)가 합의 예에 묻히지 않게 반복(§54)
+            for l in open(base, encoding="utf-8"):
+                f.write(l if l.endswith(NL) else l + NL)
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + NL)
-    print(f"문장별 합의: {dict(sorted(stats.items()))}")
+    print(f"문장별 합의: {dict(sorted(stats.items()))} · 기존 학습셋 {opts.get('base_x', 1)}회")
     print(f"합의 증류 학습셋: 기존 {sum(1 for _ in open(base, encoding='utf-8'))} + 합의 문장 {len(rows)} {dict(Counter(r['label'] for r in rows))}")
 
 
@@ -581,6 +600,7 @@ def main() -> None:
     ap.add_argument("--student", default="checkpoints/nli_distill")
     ap.add_argument("--llm", default="Qwen/Qwen3.8-27B")
     ap.add_argument("--batch", type=int, default=32)
+    ap.add_argument("--enc-only", action="store_true", help="이미 판정한 파일에 --student 인코더 점수만 다시 매긴다(LLM 을 올리지 않는다)")
     ap.add_argument("--kv", action="store_true", help="이미 판정한 파일의 조건 추출 항목 줄만 KV_PROMPT 로 다시 묻는다 → <이름>.kv.jsonl")
     a = ap.parse_args()
     out = Path(a.out_dir)
@@ -599,6 +619,12 @@ def main() -> None:
         return
     if not Path(a.student).exists():
         raise SystemExit(f"거부: 증류 인코더가 없다 — {a.student}")
+    if a.enc_only:
+        enc = TransformerNLI(a.student, device="cuda")
+        for path in a.files:
+            enc_file(path, out / Path(path).name, enc)
+        print("ENC_DONE")
+        return
     enc, llm = TransformerNLI(a.student, device="cuda"), LLMJudgeNLI(a.llm, device="cuda", batch_size=a.batch)
     for path in a.files:
         judge_file(path, out / Path(path).name, enc, llm)
