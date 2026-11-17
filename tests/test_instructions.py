@@ -263,6 +263,24 @@ def test_dpo_multi_pairs_qa_only_within_the_same_question(tmp_path):
     assert "배양 온도는?" in pairs[0]["prompt"] and pairs[0]["source"]["task"] == "qa"
 
 
+def test_distill_multi_labels_only_unanimous_sentences(tmp_path):
+    import json
+    ja = _judge_all()
+
+    def judged(name, scores):            # scores: 문장별 점수
+        sents = [{"text": t, "llm": v, "unit_swap": False} for t, v in
+                 zip(("배양했다.", "흡광도가 높았다.", "원인은 온도다.", "온도: 37℃"), scores)]
+        rows = [{**row("x"), "sents": sents}, {**row("y"), "passage": "긴" * 900, "sents": sents[:1]}]
+        p = tmp_path / f"{name}.jsonl"
+        p.write_text("".join(json.dumps(r, ensure_ascii=False) + chr(10) for r in rows), encoding="utf-8")
+        return ([str(p)], 0.5)
+    judges = {"a": judged("a", (0.9, 0.9, 0.1, 0.9)), "b": judged("b", (0.9, 0.1, 0.1, 0.9)), "c": judged("c", (0.9, 0.9, 0.2, 0.9))}
+    rows, stats = ja.distill_multi_rows(judges, set())
+    assert sorted((r["hypothesis"], r["label"]) for r in rows) == [("배양했다.", "entail"), ("원인은 온도다.", "neutral")], \
+        "갈린 문장 · 항목 줄 · 800자 넘는 원문은 빠진다"
+    assert ja.distill_multi_rows(judges, {"".join(PASSAGE.split())})[0] == [], "평가 원문은 뺀다"
+
+
 def test_prompt_kind_changes_wording_only_for_other_sources():
     assert bi.prompt_of("summary", "", PASSAGE) == bi.prompt_of("summary", "", PASSAGE, "note"), "기본값은 기존 데이터와 글자까지 같다"
     p = bi.prompt_of("summary", "", PASSAGE, "abstract")
