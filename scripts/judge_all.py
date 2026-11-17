@@ -272,7 +272,8 @@ def distill_multi_rows(judges: dict[str, tuple[list[str], float]], exclude: set[
     """여러 판정 모델의 합의를 인코더 학습 라벨로 (연구노트 §53).
 
     v4 까지는 Qwen 하나의 확신(P ≥ 0.9 / ≤ 0.1)을 라벨로 썼다 — 인코더가 Qwen 의 관대함을 물려받는다(§44).
-    - 모든 판정 모델이 자기 임계값 이상 → entail, 모두 미만 → neutral. 갈린 문장은 버린다.
+    - 모든 판정 모델이 자기 임계값 이상 → entail, 과반이 미만 → neutral(선호쌍의 rejected 와 같은 기준). 그 사이는 버린다.
+      (셋 모두 미만인 문장은 59만 중 1,116개뿐이다 — Qwen 의 임계값 0.016 이 거의 아무것도 탈락시키지 않는다.)
     - '항목: 값' 줄은 뺀다 — 기존 프롬프트의 판정이 믿을 수 없다(§48).
     - 원문이 한 창(800자)에 들어가는 행만, exclude(평가 원문)는 뺀다 — distill_rows 와 같다.
     - neutral 은 전부, entail 은 neutral 의 2배까지 표본. 합쳐서 cap 을 넘으면 같은 비율로 줄인다.
@@ -296,7 +297,7 @@ def distill_multi_rows(judges: dict[str, tuple[list[str], float]], exclude: set[
                     stats["항목 줄 · 단위 뒤바뀜 제외"] += 1
                     continue
                 votes = [x["sents"][j]["llm"] >= judges[n][1] for n, x in zip(names, rows)]
-                if all(votes) or not any(votes):
+                if all(votes) or sum(votes) * 2 < len(votes):
                     row = {"doc": r["doc"], "premise": r["passage"], "hypothesis": s["text"],
                            "label": "entail" if all(votes) else "neutral", "kind": "consensus"}
                     (pos if all(votes) else neg).append(row)
