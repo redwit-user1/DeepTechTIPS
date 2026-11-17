@@ -18,6 +18,7 @@ GPU 없이 데이터·설정 검증:
 from __future__ import annotations
 
 import argparse
+import os
 from typing import Optional
 
 from compliance_gateway.train.config import NLIFinetuneConfig
@@ -209,6 +210,7 @@ def run(cfg: NLIFinetuneConfig) -> None:
         load_best_model_at_end=eval_ds is not None,
         metric_for_best_model="accuracy",
         logging_steps=20,
+        seed=int(os.environ.get("NLI_SEED", 42)),      # 반복 학습으로 인코더 학습의 흔들림을 잰다(연구노트 §55)
         warmup_ratio=0.1,
         bf16=True,                       # A100
     )
