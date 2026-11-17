@@ -281,6 +281,17 @@ def test_distill_multi_labels_only_unanimous_sentences(tmp_path):
     assert ja.distill_multi_rows(judges, {"".join(PASSAGE.split())})[0] == [], "평가 원문은 뺀다"
 
 
+def test_enc_file_rescoring_keeps_llm_scores(tmp_path):
+    import json
+    ja = _judge_all()
+    rows = [{**row("x"), "sents": [{"text": "37℃ 에서 배양했다.", "enc": 0.0, "llm": 0.7}, {"text": "99℃ 였다.", "enc": 1.0, "llm": 0.2}]}]
+    src = tmp_path / "j.jsonl"; out = tmp_path / "o.jsonl"
+    src.write_text("".join(json.dumps(r, ensure_ascii=False) + chr(10) for r in rows), encoding="utf-8")
+    ja.enc_file(str(src), out, fake_nli)
+    got = json.loads(out.read_text(encoding="utf-8"))["sents"]
+    assert [(s["enc"], s["llm"]) for s in got] == [(1.0, 0.7), (0.0, 0.2)]
+
+
 def test_prompt_kind_changes_wording_only_for_other_sources():
     assert bi.prompt_of("summary", "", PASSAGE) == bi.prompt_of("summary", "", PASSAGE, "note"), "기본값은 기존 데이터와 글자까지 같다"
     p = bi.prompt_of("summary", "", PASSAGE, "abstract")
