@@ -26,6 +26,7 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+NL = chr(10)
 LO, HI, THR = 0.005, 0.98, 0.01          # CascadeNLI 기본값과 같다(증류 인코더 기준)
 QA_THR = 0.5
 
@@ -266,6 +267,70 @@ def distill(out: str, base: str, heldout: str, judged: list[str]) -> None:
     print(f"증류 학습셋: 기존 {sum(1 for _ in open(base, encoding='utf-8'))} + 생성 응답 문장 {len(rows)} {dict(Counter(r['label'] for r in rows))}")
 
 
+def distill_multi_rows(judges: dict[str, tuple[list[str], float]], exclude: set[str],
+                       cap: int = 60000, seed: int = 0) -> tuple[list[dict], Counter]:
+    """여러 판정 모델의 합의를 인코더 학습 라벨로 (연구노트 §53).
+
+    v4 까지는 Qwen 하나의 확신(P ≥ 0.9 / ≤ 0.1)을 라벨로 썼다 — 인코더가 Qwen 의 관대함을 물려받는다(§44).
+    - 모든 판정 모델이 자기 임계값 이상 → entail, 모두 미만 → neutral. 갈린 문장은 버린다.
+    - '항목: 값' 줄은 뺀다 — 기존 프롬프트의 판정이 믿을 수 없다(§48).
+    - 원문이 한 창(800자)에 들어가는 행만, exclude(평가 원문)는 뺀다 — distill_rows 와 같다.
+    - neutral 은 전부, entail 은 neutral 의 2배까지 표본. 합쳐서 cap 을 넘으면 같은 비율로 줄인다.
+    """
+    import random
+
+    names = list(judges)
+    stats: Counter = Counter()
+    pos, neg = [], []
+    for k in range(len(judges[names[0]][0])):
+        handles = [open(judges[n][0][k], encoding="utf-8") for n in names]
+        for lines in zip(*handles):
+            rows = [json.loads(l) for l in lines]
+            r = rows[0]
+            if any(x["answer"] != r["answer"] or len(x["sents"]) != len(r["sents"]) for x in rows):
+                raise SystemExit(f"거부: 판정 파일의 행이 서로 다르다 — {judges[names[0]][0][k]}")
+            if len(r["passage"]) > 800 or re.sub(r"\s+", "", r["passage"]) in exclude:
+                continue
+            for j, s in enumerate(r["sents"]):
+                if s["unit_swap"] or kv_split(s["text"]):
+                    stats["항목 줄 · 단위 뒤바뀜 제외"] += 1
+                    continue
+                votes = [x["sents"][j]["llm"] >= judges[n][1] for n, x in zip(names, rows)]
+                if all(votes) or not any(votes):
+                    row = {"doc": r["doc"], "premise": r["passage"], "hypothesis": s["text"],
+                           "label": "entail" if all(votes) else "neutral", "kind": "consensus"}
+                    (pos if all(votes) else neg).append(row)
+                stats[f"지지 판정 {sum(votes)}/{len(votes)}"] += 1
+        for h in handles:
+            h.close()
+    rng = random.Random(seed)
+    rng.shuffle(pos)
+    rng.shuffle(neg)
+    pos = pos[: 2 * len(neg)]
+    if len(pos) + len(neg) > cap:
+        f = cap / (len(pos) + len(neg))
+        pos, neg = pos[: int(len(pos) * f)], neg[: int(len(neg) * f)]
+    return pos + neg, stats
+
+
+def distill_multi_cli(args: list[str]) -> None:
+    """distill-multi <out.jsonl> <기존 학습셋> <heldout1,heldout2> <scores 디렉터리> <파일1,파일2> <이름=판정디렉터리[=덤프꼬리]>..."""
+    out, base, heldouts, scores, files, specs = args[0], args[1], args[2], args[3], args[4].split(","), args[5:]
+    exclude = set()
+    for h in heldouts.split(","):
+        exclude |= {re.sub(r"\s+", "", json.loads(l)["passage"]) for l in open(h, encoding="utf-8")}
+    rows, stats = distill_multi_rows(_judges_from(scores, files, specs), exclude)
+    if not rows:
+        raise SystemExit("거부: 합의 라벨이 0건이다")
+    with open(out, "w", encoding="utf-8") as f:
+        for l in open(base, encoding="utf-8"):
+            f.write(l if l.endswith(NL) else l + NL)
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + NL)
+    print(f"문장별 합의: {dict(sorted(stats.items()))}")
+    print(f"합의 증류 학습셋: 기존 {sum(1 for _ in open(base, encoding='utf-8'))} + 합의 문장 {len(rows)} {dict(Counter(r['label'] for r in rows))}")
+
+
 def dpo_consensus(judged: list[str], exclude: set[str]) -> list[dict]:
     """두 판정기가 **모두** 동의한 선호쌍 — 같은 (원문, 과제)의 응답 가운데.
 
@@ -493,6 +558,8 @@ def dpo_multi_cli(args: list[str]) -> None:
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "distill-multi":
+        return distill_multi_cli(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "dpo-multi":
         return dpo_multi_cli(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "export-multi":
