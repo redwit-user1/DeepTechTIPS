@@ -510,6 +510,7 @@ def export_multi_cli(args: list[str]) -> None:
         for k in range(len(files)):
             handles = [open(judges[n][0][k], encoding="utf-8") for n in names]
             kvs = [{x["i"]: x["kv"] for x in map(json.loads, open(f"{d}/{Path(files[k]).stem}.kv.jsonl", encoding="utf-8"))}
+                   if Path(f"{d}/{Path(files[k]).stem}.kv.jsonl").exists() else {}      # 조건 추출이 없는 파일(질의응답 표집분)은 전용 판정이 없다
                    for d in kv_dirs]
             for i, lines in enumerate(zip(*handles)):
                 rows = [json.loads(l) for l in lines]
