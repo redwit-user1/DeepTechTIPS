@@ -4,7 +4,8 @@
 #   bash repo/scripts/run_v36.sh start      # v35 N줄이 끝나면 GPU 1 에서 시작
 #
 #   1. KCI 질의응답 표집 분담  2. 두 번째 교사의 연구노트 합의 통과분 → sft9n = sft6 + fly2_note
-#   3. 9B sft_v9n → 평가   4. dpo_v12n(+ dpo7) → 평가   5. fly2_kci 의 EEVE 판정 · 전용 판정 분담
+#   3. 9B sft_v9n → 평가   4. dpo_v12n(+ dpo7) → 평가
+#   (K줄의 판정 분담은 뺐다 — 이 줄이 닿을 무렵 K줄이 같은 판정을 돌고 있을 수 있어 겹칠 위험이 있다)
 # 비교: sft_v8n(첫 바퀴 교사의 연구노트분) 대 sft_v9n(두 번째 교사의 연구노트분) — 교사만 다르다.
 R=~/research-data-analysis; cd $R/repo; export HF_HOME=/tmp/hf HF_HUB_OFFLINE=1; L=$R/logs; CK=$R/checkpoints; I=data/instr; K=data/kci; J=data/judged
 . $R/venv/bin/activate
@@ -82,9 +83,4 @@ if [ -s $CK/sft_v9n/adapter_model.safetensors ] && [ ! -s $CK/dpo_v12n/adapter_m
   echo "DPO_EXIT $?"
 fi
 [ -s $CK/dpo_v12n/adapter_model.safetensors ] && { gen dpo_v12n $S $CK/dpo_v12n; rejudge dpo_v12n; }
-echo "== 5. fly2_kci 의 EEVE 판정 · 조건 추출 전용 판정 (K줄 분담) $(date)"
-for i in $(seq 1 1440); do [ -f $SM/fly2_kci.jsonl.done ] && break; sleep 30; done
-jd eeve $SM/fly2_kci.jsonl $SM/fly2_kci_qa.jsonl
-for i in $(seq 1 720); do [ -f $J/fly2_kci.jsonl.done ] && break; sleep 30; done
-[ -f $J/fly2_kci.jsonl.done ] && for tag in phi4 kanana midm qwen; do kv $tag fly2_kci $J/fly2_kci.jsonl; done
 echo "V36_DONE $(date)"
