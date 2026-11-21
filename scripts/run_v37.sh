@@ -4,7 +4,7 @@
 #   bash repo/scripts/run_v37.sh start      # v36 이 끝나면 GPU 1 에서 시작
 #
 # 연차보고서의 4-bit(NF4) 보존율은 중간 모델(9B dpo_v4, 27B sft27_v1)로 잰 값이다. 최종 모델(9B dpo_v11, 27B dpo27_v7)로 다시 잰다.
-# 27B dpo27_v7 은 학습 한 번의 결과다(9B dpo_v11 은 두 번). SFT 부터 씨앗만 바꿔 한 번 더: sft27_v5_s1 → dpo27_v7_s1.
+# (27B 반복은 run_v38.sh 로 옮겨 GPU 0 에서 K줄과 함께 돌린다 — 9B 학습은 GPU 를 3분의 1 만 쓴다.)
 R=~/research-data-analysis; cd $R/repo; export HF_HOME=/tmp/hf HF_HUB_OFFLINE=1; L=$R/logs; CK=$R/checkpoints; I=data/instr; K=data/kci; J=data/judged
 . $R/venv/bin/activate
 S=Qwen/Qwen3.5-9B; T=Qwen/Qwen3.8-27B
@@ -54,14 +54,4 @@ echo "== 2. 4-bit 보존율: 27B dpo27_v7 $(date)"
 gen dpo27_v7_4bit $T $CK/dpo27_v7 --load-4bit; rejudge dpo27_v7_4bit
 grep -ah "GiB" $L/eval2_dpo_v11_4bit.txt $L/eval2_dpo27_v7_4bit.txt | tail -4 | cut -c1-200
 
-echo "== 3. 27B 반복: sft27_v5_s1 (sft8, 씨앗 1) → dpo27_v7_s1 $(date)"
-if [ ! -s $CK/sft27_v5_s1/adapter_model.safetensors ]; then
-  python -m compliance_gateway.train.sft --base qwen --dataset $I/sft8_train.jsonl --output $CK/sft27_v5_s1 --epochs 1 --seed 1 > $L/sft27_v5_s1.txt 2>&1
-  echo "SFT27_EXIT $?"
-fi
-if [ -s $CK/sft27_v5_s1/adapter_model.safetensors ] && [ ! -s $CK/dpo27_v7_s1/adapter_model.safetensors ]; then
-  python -m compliance_gateway.train.dpo --base qwen --sft-adapter $CK/sft27_v5_s1 --dataset $I/dpo7.jsonl --output $CK/dpo27_v7_s1 --epochs 1 --lr 2e-5 --batch 1 --grad-accum 16 --seed 1 > $L/dpo27_v7_s1.txt 2>&1
-  echo "DPO27_EXIT $?"
-fi
-[ -s $CK/dpo27_v7_s1/adapter_model.safetensors ] && { gen dpo27_v7_s1 $T $CK/dpo27_v7_s1; rejudge dpo27_v7_s1; }
 echo "V37_DONE $(date)"
