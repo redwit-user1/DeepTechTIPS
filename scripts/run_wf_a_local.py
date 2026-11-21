@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import json
 import time
@@ -36,7 +37,15 @@ TOPICS = [
 ]
 
 
-def local_llm(model_id: str, max_new_tokens: int = 1500, adapter: str | None = None):
+def stage_of(prompt: str) -> str:
+    """WF-A 의 LLM 호출 세 가지를 프롬프트로 구분한다: 갭 분석(gap) · 초안(draft) · 재작성(regen)."""
+    if "[초안]" in prompt:
+        return "regen"
+    return "draft" if "[갭 분석]" in prompt else "gap"
+
+
+def local_llm(model_id: str, max_new_tokens: int = 1500, adapter: str | None = None,
+              adapter_on: tuple[str, ...] = ("gap", "draft", "regen")):
     import torch
     from transformers import AutoModelForImageTextToText, AutoTokenizer
 
@@ -58,7 +67,9 @@ def local_llm(model_id: str, max_new_tokens: int = 1500, adapter: str | None = N
         msgs = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
         text = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True, enable_thinking=False)
         enc = tok(text, return_tensors="pt").to("cuda")
-        with torch.no_grad():
+        # 단계별 어댑터 선택(연구노트 §61): 꺼 둔 단계는 같은 가중치에서 어댑터만 빼고 기반 모델로 쓴다
+        off = contextlib.nullcontext() if not adapter or stage_of(prompt) in adapter_on else m.disable_adapter()
+        with torch.no_grad(), off:
             out = m.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False)
         return tok.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True)
 
@@ -84,10 +95,11 @@ def main() -> None:
     ap.add_argument("--out", required=True)
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--adapter", help="LoRA 어댑터 경로 — SLM v1 + Gateway v1 + 에이전트 v1 통합 실행")
+    ap.add_argument("--adapter-on", default="gap,draft,regen", help="어댑터를 켤 단계(쉼표): gap,draft,regen")
     ap.add_argument("--search-cache", help="save_search 로 만든 검색 결과 JSON(없으면 OpenAlex 실시간)")
     a = ap.parse_args()
     search = cached_search(a.search_cache) if a.search_cache else (lambda q: search_papers(q, limit=a.limit))
-    llm = local_llm(a.model, adapter=a.adapter)
+    llm = local_llm(a.model, adapter=a.adapter, adapter_on=tuple(x for x in a.adapter_on.split(",") if x))
     approve = lambda node, ctx: node.gate          # 최종 승인은 승인, 차단 검토는 거절
     logs = []
     with open(a.out, "w", encoding="utf-8") as f:
