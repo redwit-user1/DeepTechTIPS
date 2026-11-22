@@ -113,6 +113,7 @@ def main() -> None:
                    "n_sources": len((res.ctx.get("search") or {}).get("grounding", [])), "seconds": round(time.time() - t0, 1),
                    # 출처 정확률 KPI 계산용: 초안·인용 DOI·근거 DOI
                    "draft": v.get("draft", ""),
+                   "first_draft": res.ctx.get("draft", ""),   # 재작성 전 초안 — 재작성이 무엇을 바꿨는지 보려고(§61)
                    "cited_dois": [c.doi for c in extract_citations(v.get("draft", "")) if c.doi],
                    "source_dois": [r.doi for r in (res.ctx.get("search") or {}).get("records", []) if r.doi]}
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
