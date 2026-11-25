@@ -76,9 +76,17 @@ def local_llm(model_id: str, max_new_tokens: int = 1500, adapter: str | None = N
     return llm
 
 
-def save_search(path: str, limit: int = 5) -> None:
+def load_topics(path: str | None) -> list[tuple[str, str]]:
+    """기본 10개 주제 + (있으면) JSON 파일의 [주제, 검색어] 목록. 주제를 늘려 통과 수의 흔들림을 줄인다(연구노트 §62)."""
+    if not path:
+        return list(TOPICS)
+    extra = [tuple(x) for x in json.load(open(path, encoding="utf-8"))]
+    return list(TOPICS) + [t for t in extra if t not in TOPICS]
+
+
+def save_search(path: str, limit: int = 5, topics: list[tuple[str, str]] | None = None) -> None:
     """검색만 미리 해 둔다. OpenAlex 무료 한도는 **IP 단위**라 공용 GPU 서버 IP 는 자주 소진된다(429)."""
-    cache = {q: [dataclasses.asdict(r) for r in search_papers(q, limit=limit)] for _, q in TOPICS}
+    cache = {q: [dataclasses.asdict(r) for r in search_papers(q, limit=limit)] for _, q in (topics or TOPICS)}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False)
     print({q: len(v) for q, v in cache.items()})
@@ -96,14 +104,16 @@ def main() -> None:
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--adapter", help="LoRA 어댑터 경로 — SLM v1 + Gateway v1 + 에이전트 v1 통합 실행")
     ap.add_argument("--adapter-on", default="gap,draft,regen", help="어댑터를 켤 단계(쉼표): gap,draft,regen")
+    ap.add_argument("--topics", help="추가 주제 JSON([[주제, 검색어], ...]) — 기본 10개 뒤에 붙는다")
     ap.add_argument("--search-cache", help="save_search 로 만든 검색 결과 JSON(없으면 OpenAlex 실시간)")
     a = ap.parse_args()
+    topics = load_topics(a.topics)
     search = cached_search(a.search_cache) if a.search_cache else (lambda q: search_papers(q, limit=a.limit))
     llm = local_llm(a.model, adapter=a.adapter, adapter_on=tuple(x for x in a.adapter_on.split(",") if x))
     approve = lambda node, ctx: node.gate          # 최종 승인은 승인, 차단 검토는 거절
     logs = []
     with open(a.out, "w", encoding="utf-8") as f:
-        for topic, query in TOPICS:
+        for topic, query in topics:
             t0 = time.time()
             res = run_wf_a(topic, llm=llm, approve=approve, model_id=a.model + ("+" + a.adapter.rstrip("/").rsplit("/", 1)[-1] if a.adapter else ""),
                            search_fn=lambda _t, q=query: search(q))
@@ -121,7 +131,7 @@ def main() -> None:
             logs += res.log
             print(f"{topic[:24]:26s} {res.status:14s} 자동화 {rec['rate']:.0%} 결정 {rec['decision']} VCR {rec['vcr']} "
                   f"재생성 {rec['regenerations']} 근거 {rec['n_sources']}", flush=True)
-    print(f"전체 자동화율(단계 가중) {automation_rate(logs):.1%}  주제 {len(TOPICS)}")
+    print(f"전체 자동화율(단계 가중) {automation_rate(logs):.1%}  주제 {len(topics)}")
 
 
 if __name__ == "__main__":
