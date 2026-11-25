@@ -41,14 +41,18 @@ def main() -> None:
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--max-new-tokens", type=int, default=1500)
     ap.add_argument("--min-abstracts", type=int, default=3)
+    ap.add_argument("--skip-log", nargs="*", default=[], help="이미 생성한 주제(앞 묶음의 --log)는 건너뛴다")
     a = ap.parse_args()
 
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     cache = json.load(open(a.search_cache, encoding="utf-8"))
+    done = {json.loads(l)["topic"] for p in a.skip_log for l in open(p, encoding="utf-8") if l.strip()}
     items = []
     for t in json.load(open(a.topics, encoding="utf-8")):
+        if t[0] in done:
+            continue
         recs = [PaperRecord(**{**r, "authors": tuple(r["authors"])}) for r in cache.get(t[1], [])]
         if sum(1 for r in recs if r.abstract) < a.min_abstracts or sum(1 for r in recs if r.doi) < 3:
             continue
