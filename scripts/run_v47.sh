@@ -42,13 +42,21 @@ jd() {
   done
 }
 
-echo "== 1. 제안서 예 생성(기반 27B) $(date)"
-for i in $(seq 1 240); do [ -s $D/prop_search.json ] && break; sleep 30; done
-if [ ! -s $I/prop_train.jsonl ]; then
+# OpenAlex 무료 한도(IP 단위, 하루)가 900개 검색 도중 바닥났다(11/25). 그래서 두 묶음으로 나눈다:
+#   a = 지금 초록이 갖춰진 주제(약 150개) → 바로 생성. b = 한도가 풀린 뒤(11/26 09:00 KST) 다시 찾은 주제 → $D/prop_search_b.done 이 생기면 생성.
+echo "== 1a. 제안서 예 생성(기반 27B), 묶음 a $(date)"
+gp() {  # 묶음 이름, 나머지는 gen_proposals 옵션
+  local b=$1; shift
+  [ -s $I/prop_train_$b.jsonl ] && return
   python scripts/gen_proposals.py --model $T --topics $D/prop_topics.json --search-cache $D/prop_search.json \
-    --out $I/prop_train.jsonl --log $L/prop_gen.jsonl > $L/prop_gen.txt 2>&1
-  echo "GEN_EXIT $? $(date +%m-%d_%H:%M)"; tail -1 $L/prop_gen.txt
-fi
+    --out $I/prop_train_$b.jsonl --log $L/prop_gen_$b.jsonl "$@" > $L/prop_gen_$b.txt 2>&1
+  echo "GEN_EXIT($b) $? $(date +%m-%d_%H:%M)"; tail -1 $L/prop_gen_$b.txt
+}
+gp a
+echo "== 1b. 묶음 b: 다시 찾은 검색 결과를 기다림 $(date)"
+for i in $(seq 1 1440); do [ -f $D/prop_search_b.done ] && break; sleep 60; done
+[ -f $D/prop_search_b.done ] && gp b --skip-log $L/prop_gen_a.jsonl
+cat $I/prop_train_a.jsonl $I/prop_train_b.jsonl 2>/dev/null > $I/prop_train.jsonl
 [ -s $I/prop_train.jsonl ] || { echo "V47_FAIL 제안서 예 없음"; exit 1; }
 
 echo "== 2. sft10 = sft8 + 제안서 예 → sft_v10 → dpo_v13 $(date)"
