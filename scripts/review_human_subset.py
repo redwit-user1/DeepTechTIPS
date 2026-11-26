@@ -86,6 +86,17 @@ def merge(d: Path) -> None:
             if v not in ("1", "0", "x"):
                 raise SystemExit(f"거부: {r[1]} 의 human_label '{r[4]}' — 1 / 0 / x 만")
             human[r[1]] = v
+    # 원본 240문장 시트(review_judges_A.csv)에 직접 적은 답도 쓴다. 두 곳에 다 있으면 46문장 시트가 우선
+    with (d / "review_judges_A.csv").open(encoding="utf-8-sig", newline="") as f:
+        extra = {r["id"]: r["human_label"].strip().lower() for r in csv.DictReader(f) if r["human_label"].strip()}
+    for i, v in extra.items():
+        human.setdefault(i, v)
+    print(f"원본 시트의 사람 답 {len(extra)}건 더함 → 사람 답 합계 {len(human)}")
+    both = [i for i in human if panel[i]["human_label"] in ("0", "1") and human[i] in ("0", "1")]
+    if both:
+        print(f"패널이 정한 문장 중 사람도 본 {len(both)}건: 일치 {sum(panel[i]['human_label'] == human[i] for i in both)} · "
+              f"패널 1 → 사람 0 {sum(panel[i]['human_label'] == '1' and human[i] == '0' for i in both)} · "
+              f"패널 0 → 사람 1 {sum(panel[i]['human_label'] == '0' and human[i] == '1' for i in both)}")
     todo = [i for i, r in panel.items() if r["human_label"] in ("", "x", "0")]
     print(f"사람 답 {len(human)} / {len(todo)}")
     agree0 = [i for i in todo if panel[i]["human_label"] == "0" and i in human]
@@ -95,7 +106,7 @@ def merge(d: Path) -> None:
         w = csv.writer(f)
         w.writerow(["id", "원문", "문장", "human_label", "메모"])
         for i, r in panel.items():
-            lab = human.get(i, r["human_label"] if i not in todo else "")
+            lab = human[i] if i in human else (r["human_label"] if i not in todo else "")
             w.writerow([i, r["원문"], r["문장"], lab, ("사람" if i in human else "패널") + " " + r["메모"]])
     print(f"→ {d / 'review_judges_final.csv'}")
 
