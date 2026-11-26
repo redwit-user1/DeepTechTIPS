@@ -5,7 +5,7 @@
 Grok(review_judges_Grok.tsv), Claude(review_judges_Claude_b1~b4.tsv, 정답 키 · 다른 검수 · 모델 점수를 보지 않음).
 판정 모델(Qwen · Kanana · Midm · EEVE · Phi-4)과 계열이 겹치지 않는다.
 
-기준(gold): 넷 중 셋 이상이 같은 값(1 또는 0)을 낸 항목. 넷 모두 같은 것만 쓰는 엄격 기준도 함께 낸다.
+기준(gold): 과반(넷이면 셋, 다섯이면 셋)이 같은 값(1 또는 0)을 낸 항목. 모두 같은 것만 쓰는 엄격 기준도 함께 낸다.
 출력: review_judges_panel.csv / review_judges_panel_strict.csv (review_judges.py score 가 읽는 시트 형식)
 
     python scripts/review_panel.py data/labeling
@@ -61,6 +61,9 @@ def main() -> None:
         "Grok": read_tsv([d / "review_judges_Grok.tsv"], "grok_label"),
         "Claude": read_tsv(sorted(d.glob("review_judges_Claude_b*.tsv")), "label"),
     }
+    g2 = sorted(d.glob("review_judges_Grok2_b*.tsv"))       # 다섯째 검수자(있으면): Grok 을 앞 결과 없이 다시
+    if g2:
+        raters["Grok2"] = read_tsv(g2, "label")
     with (d / "review_judges_A.csv").open(encoding="utf-8-sig", newline="") as f:
         sheet = {r["id"]: r for r in csv.DictReader(f)}
     ids = sorted(sheet)
@@ -79,7 +82,8 @@ def main() -> None:
     print(f"Fleiss κ (넷) {fleiss(rows):.3f}")
 
     votes = {k: Counter(raters[n][k] for n in names) for k in ids}
-    for tag, need in (("panel", 3), ("panel_strict", 4)):
+    m = len(names)
+    for tag, need in (("panel", m // 2 + 1 if m > 4 else 3), ("panel_strict", m)):
         out = d / f"review_judges_{tag}.csv"
         lab = {}
         for k in ids:
