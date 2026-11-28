@@ -123,14 +123,15 @@ class ServedNLI:
         model: str,
         api_key: Optional[str] = None,
         cache_size: int = 200_000,
-        fail_value: float = 0.5,
+        fail_value: float = 0.0,
         timeout: float = 60.0,
     ) -> None:
         self.client = ServedModel(base_url, model, api_key=api_key,
                                   timeout=timeout, temperature=0.0)
         self.cache: dict[tuple[str, str], float] = {}
         self.cache_size = cache_size
-        self.fail_value = fail_value      # 호출 실패 시 중립(정상 인용을 벌하지 않음)
+        # 호출 실패를 통과로 세지 않는다(fail-closed). 실패는 캐시하지 않고 failures 로 센다.
+        self.fail_value = fail_value
         self.failures = 0
 
     @staticmethod
@@ -153,7 +154,7 @@ class ServedNLI:
             score = self.parse_verdict(out)
         except Exception:
             self.failures += 1
-            score = self.fail_value
+            return self.fail_value
         if len(self.cache) < self.cache_size:
             self.cache[key] = score
         return score
