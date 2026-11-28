@@ -50,14 +50,17 @@ def run(cfg: DPOConfig, max_steps: int = -1, seed: int = 42) -> None:
     dataset = load_dataset("json", data_files=tmp.name, split="train")
 
     peft_config = None
-    if cfg.sft_adapter and (Path(cfg.sft_adapter) / "adapter_config.json").exists():
+    if cfg.sft_adapter and not (Path(cfg.sft_adapter) / "adapter_config.json").exists():
+        # v47 사고: SFT 가 죽었는데 DPO 가 기반모델 위에서 돌아 무효 모델이 나옴. 지정한 어댑터가 없으면 멈춤.
+        raise SystemExit(f"거부: SFT 어댑터가 없다 — {cfg.sft_adapter}")
+    if cfg.sft_adapter:
         # SFT 어댑터에서 이어서 정렬한다. TRL 은 사전학습 어댑터가 실린 PeftModel 을 받으면 그 사본("ref")을
         # 기준 정책으로 쓴다 — 기준이 기반모델이 아니라 SFT 모델이 된다.
         from peft import PeftModel
         model = PeftModel.from_pretrained(model, cfg.sft_adapter, is_trainable=True)
         print(f"[DPO] SFT 어댑터에서 이어서 학습: {cfg.sft_adapter}")
     else:
-        print(f"[DPO] SFT 어댑터 없음({cfg.sft_adapter}) — 기반모델에 새 LoRA")
+        print("[DPO] SFT 어댑터를 지정하지 않음 — 기반모델에 새 LoRA")
         model = apply_lora(model, cfg.lora, unsloth_used, max_seq_len=cfg.max_seq_len)
         peft_config = None if unsloth_used else LoraConfig(
             r=cfg.lora.r, lora_alpha=cfg.lora.alpha, lora_dropout=cfg.lora.dropout,
